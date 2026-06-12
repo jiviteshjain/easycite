@@ -1,7 +1,30 @@
 import type { Paper } from '../types'
 
-export function buildUrl(query: string): string {
-  const q = `all:${query.trim().split(/\s+/).join(' AND all:')}`
+/** arXiv's top-level archive groups; "physics" spans many archive prefixes. */
+export const ARXIV_GROUPS: Record<string, string[]> = {
+  cs: ['cs'],
+  econ: ['econ'],
+  eess: ['eess'],
+  math: ['math'],
+  physics: [
+    'astro-ph', 'cond-mat', 'gr-qc', 'hep-ex', 'hep-lat', 'hep-ph', 'hep-th',
+    'math-ph', 'nlin', 'nucl-ex', 'nucl-th', 'physics', 'quant-ph',
+  ],
+  'q-bio': ['q-bio'],
+  'q-fin': ['q-fin'],
+  stat: ['stat'],
+}
+
+export const ARXIV_GROUP_IDS = Object.keys(ARXIV_GROUPS)
+
+export function buildUrl(query: string, categories?: string[]): string {
+  let q = `all:${query.trim().split(/\s+/).join(' AND all:')}`
+  // cat:X* matches both bare archives (quant-ph) and subcategories (cs.CL).
+  const groups = (categories ?? []).filter((g) => g in ARXIV_GROUPS)
+  if (groups.length > 0 && groups.length < ARXIV_GROUP_IDS.length) {
+    const cats = groups.flatMap((g) => ARXIV_GROUPS[g]!.map((a) => `cat:${a}*`))
+    q = `(${q}) AND (${cats.join(' OR ')})`
+  }
   return `https://export.arxiv.org/api/query?search_query=${encodeURIComponent(q)}&max_results=10`
 }
 

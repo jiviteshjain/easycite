@@ -6,5 +6,6 @@ export default defineConfig({
   plugins: [crx({ manifest })],
   build: {
     target: 'chrome111',
+    cssTarget: 'chrome111',
   },
 })

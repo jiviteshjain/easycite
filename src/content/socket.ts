@@ -22,6 +22,8 @@ export class OverleafSocket {
   private acks = new Map<number, { resolve: (args: unknown[]) => void; reject: (e: Error) => void }>()
   private events = new Map<string, (args: unknown[]) => void>()
   private closed = false
+  /** applyOtUpdate acks on queueing; rejections arrive later via otUpdateError. */
+  otError: string | undefined
 
   static async connect(projectId: string): Promise<{ socket: OverleafSocket; project: JoinedProject }> {
     const handshakeUrl = `${location.origin}/socket.io/1/?projectId=${projectId}&t=${Date.now()}`
@@ -48,6 +50,11 @@ export class OverleafSocket {
         clearTimeout(timer)
         resolve(project)
       }
+
+      this.events.set('otUpdateError', (args) => {
+        this.otError = JSON.stringify(args[0] ?? args)
+        console.warn('[EasyCite] otUpdateError:', args)
+      })
 
       // Newer Overleaf pushes joinProjectResponse unprompted when the
       // connection carries ?projectId; older servers need an explicit emit.
@@ -147,7 +154,7 @@ export class OverleafSocket {
     if (!Array.isArray(docLines) || typeof version !== 'number') {
       throw new Error('Unexpected joinDoc response shape')
     }
-    return { content: docLines.join('\n'), version }
+    return { content: docLines.map(decodeUtf8Line).join('\n'), version }
   }
 
   async applyInsert(docId: string, position: number, text: string, version: number): Promise<void> {
@@ -169,6 +176,22 @@ export class OverleafSocket {
     } catch {
       // already closed
     }
+  }
+}
+
+/**
+ * joinDoc responses arrive UTF-8-escaped (real-time encodes each line with
+ * unescape(encodeURIComponent(...)) — a socket.io 0.9 workaround), while ops
+ * are sent and stored raw. Without decoding, every non-ASCII character before
+ * an entry shifts our offsets against the server's document, and delete ops
+ * ("d" must match exactly) get rejected with "Delete component does not match".
+ */
+function decodeUtf8Line(line: string): string {
+  if (!/[\u0080-\uffff]/.test(line)) return line
+  try {
+    return decodeURIComponent(escape(line))
+  } catch {
+    return line
   }
 }
 

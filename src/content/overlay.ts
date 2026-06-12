@@ -1,4 +1,5 @@
 import css from './overlay.css?inline'
+import { ARXIV_GROUP_IDS } from '../core/sources/arxiv'
 import type { MergedResult, Provenance, SourceId } from '../core/types'
 import type { SearchUpdate } from './search'
 
@@ -15,22 +16,26 @@ export interface OverlayCallbacks {
   onClose(): void
   onToggleSource(source: SourceId): void
   onPickBibFile(file: string): void
+  onSetArxivCategories(groups: string[]): void
 }
 
 const SOURCE_LABELS: Record<SourceId | 'local', string> = {
   dblp: 'DBLP',
   openreview: 'OpenReview',
   arxiv: 'arXiv',
+  crossref: 'Crossref',
+  europepmc: 'Europe PMC',
   local: 'your bibliography',
 }
 
-const ALL_SOURCES: SourceId[] = ['dblp', 'openreview', 'arxiv']
+const ALL_SOURCES: SourceId[] = ['dblp', 'openreview', 'arxiv', 'crossref', 'europepmc']
 
 const PROVENANCE_LABELS: Record<Provenance, string> = {
   acl: 'ACL Anthology',
   dblp: 'DBLP',
   openreview: 'OpenReview',
   arxiv: 'arXiv',
+  crossref: 'Crossref',
   local: 'your bibliography',
 }
 
@@ -58,10 +63,11 @@ export class Overlay {
   private input!: HTMLInputElement
   private resultsEl!: HTMLDivElement
   private statusEl!: HTMLDivElement
-  private dotsEl!: HTMLDivElement
   private chipsEl!: HTMLDivElement
+  private chipEls = new Map<SourceId, HTMLButtonElement>()
   private bibBtn!: HTMLButtonElement
   private pickerEl: HTMLDivElement | null = null
+  private pickerKind: 'bib' | 'cat' | null = null
 
   private results: MergedResult[] = []
   private selected = 0
@@ -70,6 +76,7 @@ export class Overlay {
   private enabledSources: SourceId[] = []
   private bibFiles: string[] = []
   private currentBibFile: string | undefined
+  private arxivCategories: string[] = []
   private hasSearched = false
 
   constructor(private readonly cb: OverlayCallbacks) {
@@ -87,6 +94,18 @@ export class Overlay {
 
     this.panel = el('div', 'panel')
     this.panel.addEventListener('keydown', (e) => this.onKeydown(e))
+    // Clicking anywhere outside an open picker closes it (the toggle buttons
+    // handle themselves).
+    this.panel.addEventListener(
+      'mousedown',
+      (e) => {
+        if (!this.pickerEl) return
+        const target = e.target as HTMLElement
+        if (this.pickerEl.contains(target) || target.closest('.caret, .bib-file')) return
+        this.closePicker()
+      },
+      true
+    )
 
     const searchRow = el('div', 'search-row')
     searchRow.innerHTML = `
@@ -98,8 +117,6 @@ export class Overlay {
     this.input.placeholder = 'Search title, authors, year…'
     this.input.addEventListener('input', () => this.cb.onQueryChange(this.input.value))
     searchRow.appendChild(this.input)
-    this.dotsEl = el('div', 'source-dots')
-    searchRow.appendChild(this.dotsEl)
     // Anchored under the search row, absolutely positioned so showing it
     // doesn't shift the result list.
     this.statusEl = el('div', 'status')
@@ -161,6 +178,7 @@ export class Overlay {
 
   setSources(enabled: SourceId[]): void {
     this.enabledSources = enabled
+    this.chipEls.clear()
     this.chipsEl.replaceChildren(
       ...ALL_SOURCES.map((source) => {
         const chip = document.createElement('button')
@@ -168,10 +186,24 @@ export class Overlay {
         chip.textContent = SOURCE_LABELS[source]
         chip.title = `Toggle ${SOURCE_LABELS[source]} for this project`
         chip.addEventListener('click', () => this.cb.onToggleSource(source))
-        return chip
+        this.chipEls.set(source, chip)
+        if (source !== 'arxiv') return chip
+        // arXiv gets a caret opening the per-project topic picker.
+        const group = el('span', 'chip-group')
+        const caret = document.createElement('button')
+        caret.className = `chip caret${enabled.includes(source) ? ' on' : ''}`
+        caret.textContent = '▾'
+        caret.title = 'arXiv topics for this project'
+        caret.addEventListener('click', () => this.toggleCatPicker())
+        group.append(chip, caret)
+        return group
       })
     )
-    this.renderDots([], {})
+    this.renderSourceStatus([], {})
+  }
+
+  setArxivCategories(groups: string[]): void {
+    this.arxivCategories = groups
   }
 
   setBibFiles(files: string[], current: string | undefined): void {
@@ -199,7 +231,7 @@ export class Overlay {
     this.hasSearched = true
     this.results = update.results
     this.selected = Math.min(this.selected, Math.max(0, this.results.length - 1))
-    this.renderDots(update.pendingSources, update.errors)
+    this.renderSourceStatus(update.pendingSources, update.errors)
     const errors = Object.entries(update.errors)
     if (errors.length > 0) {
       // Per-source failures are harmless (the other sources still answered):
@@ -215,16 +247,54 @@ export class Overlay {
     this.renderResults(update.pendingSources.length > 0)
   }
 
-  private renderDots(pending: SourceId[], errors: Partial<Record<SourceId, string>>): void {
-    this.dotsEl.replaceChildren(
-      ...this.enabledSources.map((source) => {
-        const dot = el('div', 'dot')
-        if (pending.includes(source)) dot.classList.add('pending')
-        else if (errors[source]) dot.classList.add('error')
-        dot.title = SOURCE_LABELS[source]
-        return dot
+  /** Search status shown on the chips: pulsing border in flight, red on error. */
+  private renderSourceStatus(pending: SourceId[], errors: Partial<Record<SourceId, string>>): void {
+    for (const [source, chip] of this.chipEls) {
+      chip.classList.toggle('pending', pending.includes(source))
+      chip.classList.toggle('error', !pending.includes(source) && Boolean(errors[source]))
+      chip.title = errors[source] ?? `Toggle ${SOURCE_LABELS[source]} for this project`
+    }
+  }
+
+  /** Per-project arXiv topic picker, opened from the caret on the arXiv chip. */
+  private toggleCatPicker(): void {
+    const wasOpen = this.pickerKind === 'cat'
+    this.closePicker()
+    if (wasOpen) return
+    const picker = el('div', 'bib-picker cat-picker')
+    picker.addEventListener('mousedown', (e) => e.preventDefault())
+    const hint = el('div', 'cat-hint')
+    hint.textContent = 'arXiv topics for this project'
+    picker.appendChild(hint)
+    for (const group of ARXIV_GROUP_IDS) {
+      const label = document.createElement('label')
+      const box = document.createElement('input')
+      box.type = 'checkbox'
+      box.checked = this.arxivCategories.includes(group)
+      box.addEventListener('change', () => {
+        const next = box.checked
+          ? [...this.arxivCategories, group]
+          : this.arxivCategories.filter((g) => g !== group)
+        this.arxivCategories = next
+        this.cb.onSetArxivCategories(next)
       })
-    )
+      label.append(box, document.createTextNode(group))
+      picker.appendChild(label)
+    }
+    this.panel.appendChild(picker)
+    // Anchor under the caret that opened it, clamped to the panel.
+    const caret = this.chipsEl.querySelector('.caret') as HTMLElement | null
+    if (caret) {
+      const panelRect = this.panel.getBoundingClientRect()
+      const caretRect = caret.getBoundingClientRect()
+      const left = Math.max(
+        12,
+        Math.min(caretRect.left - panelRect.left, panelRect.width - picker.offsetWidth - 12)
+      )
+      picker.style.left = `${left}px`
+    }
+    this.pickerEl = picker
+    this.pickerKind = 'cat'
   }
 
   private renderResults(searching = false): void {
@@ -383,10 +453,9 @@ export class Overlay {
   }
 
   private togglePicker(): void {
-    if (this.pickerEl) {
-      this.closePicker()
-      return
-    }
+    const wasOpen = this.pickerKind === 'bib'
+    this.closePicker()
+    if (wasOpen) return
     const picker = el('div', 'bib-picker')
     picker.addEventListener('mousedown', (e) => e.preventDefault())
     const files = this.bibFiles.length > 0 ? this.bibFiles : []
@@ -410,11 +479,13 @@ export class Overlay {
     }
     this.panel.appendChild(picker)
     this.pickerEl = picker
+    this.pickerKind = 'bib'
   }
 
   private closePicker(): void {
     this.pickerEl?.remove()
     this.pickerEl = null
+    this.pickerKind = null
   }
 
   focusInput(): void {
@@ -453,12 +524,18 @@ export class Overlay {
   }
 
   /** Show the BibTeX entry that was just inserted; auto-dismisses. Returns the TTL. */
-  showBibToast(key: string, file: string, entry: string): number {
+  showBibToast(key: string, file: string, entry: string, origin?: string): number {
     const toast = el('div', 'toast bib')
     const header = el('div', 'bib-toast-header')
     const code = document.createElement('code')
     code.textContent = `@${key}`
-    header.append(code, document.createTextNode(` → ${file}`), undoHintEl())
+    header.append(code, document.createTextNode(` → ${file}`))
+    if (origin) {
+      const from = el('span', 'bib-origin')
+      from.textContent = origin
+      header.appendChild(from)
+    }
+    header.appendChild(undoHintEl())
     const pre = document.createElement('pre')
     pre.textContent = truncateBibPreview(entry)
     toast.append(header, pre)

@@ -31,10 +31,17 @@ export function parse(json: string): Paper[] {
     if (typeof title !== 'string' || !title) return []
     const venue = val(note, 'venue')
     const venueid = val(note, 'venueid')
-    // OpenReview mirrors DBLP's catalog (venueid "dblp.org/..."); those records
-    // duplicate what the DBLP source returns, with worse metadata — CoRR mirrors
-    // even pass the acceptance heuristic and masquerade as official versions.
-    if (typeof venueid === 'string' && venueid.startsWith('dblp.org/')) return []
+    // Skip catalog mirrors and non-venue records: "dblp.org/..." duplicates the
+    // DBLP source, "OpenReview.net/Public_Article" mirrors external aggregators
+    // (Crossref), and "OpenReview.net/Archive" is author-uploaded back-catalog
+    // with free-text venues. All pass the acceptance heuristic and masquerade
+    // as official versions; real venue records look like "ICLR.cc/...".
+    if (
+      typeof venueid === 'string' &&
+      (venueid.startsWith('dblp.org/') || venueid.startsWith('OpenReview.net/'))
+    ) {
+      return []
+    }
     const official = isAccepted(
       typeof venue === 'string' ? venue : undefined,
       typeof venueid === 'string' ? venueid : undefined

@@ -4,8 +4,8 @@ export default defineManifest({
   manifest_version: 3,
   name: 'EasyCite',
   description:
-    'Fast citation search and insertion for Overleaf: DBLP, OpenReview, ACL Anthology, arXiv.',
-  version: '0.2.0',
+    'Fast citation search and insertion for Overleaf: DBLP, OpenReview, arXiv, ACL Anthology, Crossref, Europe PMC.',
+  version: '0.3.0',
   icons: {
     16: 'icons/icon-16.png',
     32: 'icons/icon-32.png',
@@ -29,6 +29,8 @@ export default defineManifest({
     'https://arxiv.org/*',
     'https://api2.openreview.net/*',
     'https://aclanthology.org/*',
+    'https://api.crossref.org/*',
+    'https://www.ebi.ac.uk/*',
   ],
   background: {
     service_worker: 'src/background.ts',

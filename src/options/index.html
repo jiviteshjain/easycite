@@ -143,7 +143,14 @@
 
       .checks {
         display: flex;
-        gap: 14px;
+        flex-wrap: wrap;
+        gap: 8px 14px;
+      }
+
+      .checks.grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 7px 10px;
       }
 
       .checks label,
@@ -275,6 +282,31 @@
         <label><input type="checkbox" id="src-dblp" /> DBLP</label>
         <label><input type="checkbox" id="src-openreview" /> OpenReview</label>
         <label><input type="checkbox" id="src-arxiv" /> arXiv</label>
+        <label><input type="checkbox" id="src-crossref" /> Crossref</label>
+        <label><input type="checkbox" id="src-europepmc" /> Europe PMC</label>
+      </div>
+      <div class="hint">
+        DBLP and OpenReview focus on computer science; arXiv spans several
+        fields (topics below); Crossref covers most published papers across
+        fields; Europe PMC covers life sciences.
+      </div>
+    </div>
+
+    <div class="field">
+      <span class="group-label">arXiv topics</span>
+      <div class="checks grid">
+        <label><input type="checkbox" id="cat-cs" /> cs</label>
+        <label><input type="checkbox" id="cat-econ" /> econ</label>
+        <label><input type="checkbox" id="cat-eess" /> eess</label>
+        <label><input type="checkbox" id="cat-math" /> math</label>
+        <label><input type="checkbox" id="cat-physics" /> physics</label>
+        <label><input type="checkbox" id="cat-q-bio" /> q-bio</label>
+        <label><input type="checkbox" id="cat-q-fin" /> q-fin</label>
+        <label><input type="checkbox" id="cat-stat" /> stat</label>
+      </div>
+      <div class="hint">
+        arXiv results are limited to the checked archives. All checked means no
+        filtering; none checked disables arXiv entirely.
       </div>
     </div>
 

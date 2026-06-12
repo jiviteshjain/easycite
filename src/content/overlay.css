@@ -32,8 +32,10 @@
   font-size: 14px;
   color: var(--ec-fg);
   background: var(--ec-surface);
+  /* No -webkit- duplicate: lightningcss merges the pair and keeps only the
+     prefixed form, which Chrome ignores. Chrome-only extension, unprefixed
+     is all we need. */
   backdrop-filter: blur(24px) saturate(1.5);
-  -webkit-backdrop-filter: blur(24px) saturate(1.5);
   border: 1px solid var(--ec-border);
   box-shadow:
     0 0 0 0.5px rgba(0, 0, 0, 0.15),
@@ -55,6 +57,7 @@
   --ec-fg-dim: rgba(238, 240, 248, 0.55);
   --ec-fg-faint: rgba(238, 240, 248, 0.35);
   --ec-surface: rgba(28, 30, 42, 0.72);
+  --ec-surface-solid: rgb(33, 35, 48);
   --ec-border: rgba(255, 255, 255, 0.12);
   --ec-inner-edge: rgba(255, 255, 255, 0.08);
   --ec-row-hover: rgba(255, 255, 255, 0.06);
@@ -75,6 +78,7 @@
     --ec-fg-dim: rgba(24, 26, 36, 0.55);
     --ec-fg-faint: rgba(24, 26, 36, 0.35);
     --ec-surface: rgba(250, 250, 254, 0.78);
+    --ec-surface-solid: rgb(250, 250, 254);
     --ec-border: rgba(0, 0, 0, 0.1);
     --ec-inner-edge: rgba(255, 255, 255, 0.7);
     --ec-row-hover: rgba(0, 0, 0, 0.045);
@@ -117,29 +121,6 @@ input.query {
 
 input.query::placeholder {
   color: var(--ec-fg-faint);
-}
-
-.source-dots {
-  display: flex;
-  gap: 5px;
-  align-items: center;
-}
-
-.dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--ec-fg-faint);
-  transition: background 150ms;
-}
-
-.dot.pending {
-  background: var(--ec-accent);
-  animation: ec-pulse 0.9s ease-in-out infinite;
-}
-
-.dot.error {
-  background: #e06c75;
 }
 
 @keyframes ec-pulse {
@@ -354,6 +335,62 @@ input.query::placeholder {
   color: var(--ec-badge-official-fg);
 }
 
+/* Search status lives on the chips: pulsing border while a source is in
+   flight, red border when it errored. */
+.chip.pending {
+  border-color: var(--ec-accent);
+  animation: ec-chip-pulse 1s ease-in-out infinite;
+}
+
+.chip.error {
+  border-color: #e06c75;
+}
+
+@keyframes ec-chip-pulse {
+  50% { border-color: transparent; box-shadow: 0 0 0 3px var(--ec-row-selected); }
+}
+
+.chip-group {
+  display: inline-flex;
+}
+
+.chip-group .chip:first-child {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.chip.caret {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  border-left: none;
+  padding: 3px 6px 3px 4px;
+}
+
+.cat-picker label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 7px;
+  font-size: 12.5px;
+  color: var(--ec-fg-mid);
+  cursor: pointer;
+}
+
+.cat-picker label:hover {
+  background: var(--ec-row-selected);
+}
+
+.cat-picker input[type='checkbox'] {
+  accent-color: var(--ec-accent-strong);
+}
+
+.cat-hint {
+  padding: 6px 10px 4px;
+  font-size: 11px;
+  color: var(--ec-fg-faint);
+}
+
 .chip:focus-visible,
 .bib-file:focus-visible {
   outline: 1.5px solid var(--ec-accent);
@@ -429,8 +466,9 @@ kbd {
   left: 12px;
   min-width: 220px;
   border-radius: 10px;
-  background: var(--ec-surface);
-  backdrop-filter: blur(24px) saturate(1.5);
+  /* Solid: backdrop-filter is a no-op on descendants of the (already
+     backdrop-filtered) panel, so a translucent surface here never blurs. */
+  background: var(--ec-surface-solid);
   border: 1px solid var(--ec-border);
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.3);
   padding: 4px;
@@ -485,6 +523,14 @@ kbd {
 
 .bib-toast-header {
   font-weight: 600;
+}
+
+.bib-origin {
+  margin-left: 10px;
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(238, 240, 248, 0.55);
+  white-space: nowrap;
 }
 
 .undo-hint {

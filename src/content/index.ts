@@ -1,5 +1,5 @@
 import { computeInsertion, parseKeyHint, seedTokenAtCursor } from '../core/citation'
-import { generateKey, rewriteKey, synthesizeBibtex } from '../core/bibtex'
+import { generateKey, isCompleteBibtex, rewriteKey, synthesizeBibtex } from '../core/bibtex'
 import { parseBibPapers } from '../core/local'
 import type { EffectiveSettings } from '../core/settings'
 import type { BibtexResponse, MergedResult, Paper, SourceId } from '../core/types'
@@ -57,7 +57,7 @@ function prefetchBibtex(results: MergedResult[]): void {
     for (const result of results.slice(0, PREFETCH_TOP_N)) {
       const paper = result.primary
       const id = `${paper.bibtexSource}:${paper.bibtexRef}`
-      if (paper.bibtexSource === 'local' || paper.inlineBibtex || prefetched.has(id)) continue
+      if (paper.bibtexSource === 'local' || paper.inlineBibtex || !paper.bibtexRef || prefetched.has(id)) continue
       prefetched.add(id)
       chrome.runtime
         .sendMessage({ kind: 'bibtex', provenance: paper.bibtexSource, ref: paper.bibtexRef })
@@ -66,17 +66,55 @@ function prefetchBibtex(results: MergedResult[]): void {
   }, PREFETCH_SETTLE_MS)
 }
 
-async function fetchBibtex(paper: Paper): Promise<string> {
-  if (paper.inlineBibtex) return paper.inlineBibtex
+const ORIGIN_LABELS: Record<string, string> = {
+  acl: 'BibTeX from ACL Anthology',
+  dblp: 'BibTeX from DBLP',
+  openreview: 'BibTeX from OpenReview',
+  arxiv: 'BibTeX from arXiv',
+  crossref: 'BibTeX from Crossref',
+  synthesized: 'BibTeX built from metadata',
+}
+
+interface FetchedBibtex {
+  entry: string
+  /** Human-readable description of where the entry came from. */
+  origin: string
+}
+
+async function fetchBibtex(paper: Paper): Promise<FetchedBibtex> {
+  if (paper.inlineBibtex) {
+    return { entry: paper.inlineBibtex, origin: ORIGIN_LABELS[paper.bibtexSource]! }
+  }
   // Some OpenReview notes carry no _bibtex; build an entry from metadata.
-  if (paper.bibtexSource === 'openreview') return synthesizeBibtex(paper)
+  if (paper.bibtexSource === 'openreview') {
+    return { entry: synthesizeBibtex(paper), origin: ORIGIN_LABELS.synthesized! }
+  }
+  // Crossref: DOI-less records (some Europe PMC results) can't be fetched, and
+  // some DOI transforms come back without title/author — synthesize instead.
+  if (paper.bibtexSource === 'crossref') {
+    if (paper.bibtexRef) {
+      try {
+        const res: BibtexResponse = await chrome.runtime.sendMessage({
+          kind: 'bibtex',
+          provenance: 'crossref',
+          ref: paper.bibtexRef,
+        })
+        if (res.bibtex && isCompleteBibtex(res.bibtex)) {
+          return { entry: res.bibtex, origin: ORIGIN_LABELS.crossref! }
+        }
+      } catch {
+        // fall through to synthesis
+      }
+    }
+    return { entry: synthesizeBibtex(paper), origin: ORIGIN_LABELS.synthesized! }
+  }
   const res: BibtexResponse = await chrome.runtime.sendMessage({
     kind: 'bibtex',
     provenance: paper.bibtexSource,
     ref: paper.bibtexRef,
   })
   if (!res.bibtex) throw new Error(res.error ?? 'Failed to fetch BibTeX')
-  return res.bibtex
+  return { entry: res.bibtex, origin: ORIGIN_LABELS[paper.bibtexSource]! }
 }
 
 function ensureOverlay(): Overlay {
@@ -89,6 +127,7 @@ function ensureOverlay(): Overlay {
     onClose: () => closeOverlay(),
     onToggleSource: (source) => void toggleSource(source),
     onPickBibFile: (file) => void pickBibFile(file),
+    onSetArxivCategories: (groups) => void setArxivCategories(groups),
   })
   return overlay
 }
@@ -107,9 +146,18 @@ async function toggleSource(source: SourceId): Promise<void> {
   settings.sources = enabled
   const project = await loadProjectSettings(projectId)
   await saveProjectSettings(projectId, { ...project, sources: enabled })
-  controller?.setSources(enabled, settings.preferOfficial)
+  // Rebuild chips before the controller emits, so in-flight borders survive.
   overlay?.setSources(enabled)
+  controller?.setSources(enabled, settings.preferOfficial)
   overlay?.focusInput()
+}
+
+async function setArxivCategories(groups: string[]): Promise<void> {
+  if (!settings) return
+  settings.arxivCategories = groups
+  controller?.setArxivCategories(groups)
+  const project = await loadProjectSettings(projectId)
+  await saveProjectSettings(projectId, { ...project, arxivCategories: groups })
 }
 
 async function pickBibFile(file: string): Promise<void> {
@@ -161,12 +209,15 @@ async function insertResult(result: MergedResult, opts: SelectOptions): Promise<
   try {
     let key: string
     let entry = ''
+    let origin = ''
     let write: BibWriteResult | undefined
     if (isLocal) {
       // Already in the .bib — only the citation key goes in.
       key = paper.bibtexRef
     } else {
-      entry = (await fetchBibtex(paper)).trim()
+      const fetched = await fetchBibtex(paper)
+      entry = fetched.entry.trim()
+      origin = fetched.origin
       const customKey = generateKey(entry, settings.citeKeyFormat)
       if (customKey) entry = rewriteKey(entry, customKey)
       write = await writeBibEntry(
@@ -190,7 +241,7 @@ async function insertResult(result: MergedResult, opts: SelectOptions): Promise<
     } else if (write!.existed) {
       ttl = ui.showToast({ text: `Already in ${currentBibFile} — reused`, key }, 'warn', true)
     } else {
-      ttl = ui.showBibToast(key, currentBibFile!, rewriteKey(entry, key))
+      ttl = ui.showBibToast(key, currentBibFile!, rewriteKey(entry, key), origin)
       if (write!.renamedFrom) {
         ui.showToast({ text: `Key @${write!.renamedFrom} was taken — used`, key }, 'warn')
       }
@@ -241,9 +292,10 @@ async function undoLast(): Promise<void> {
   try {
     const state = await bridge.getEditorState()
     const c = undo.cite
-    if (c.fileName && state.fileName && state.fileName !== c.fileName) {
-      citeProblem = `${c.fileName} is not open`
-    } else if (state.doc.slice(c.from, c.from + c.inserted.length) === c.inserted) {
+    // Exact inserted text at the exact offset is the real evidence; the
+    // (DOM-scraped, flaky) filename only picks the error message when the
+    // content does not match.
+    if (state.doc.slice(c.from, c.from + c.inserted.length) === c.inserted) {
       await bridge.replaceRange({
         from: c.from,
         to: c.from + c.inserted.length,
@@ -251,6 +303,8 @@ async function undoLast(): Promise<void> {
         cursor: c.from + c.prev.length,
         expectedDocLength: state.doc.length,
       })
+    } else if (c.fileName && state.fileName && state.fileName !== c.fileName) {
+      citeProblem = `${c.fileName} is not open`
     } else {
       citeProblem = 'the document changed'
     }
@@ -305,7 +359,8 @@ async function openOverlay(presetQuery?: string): Promise<void> {
     },
     settings.sources,
     settings.preferOfficial,
-    settings.debounceMs
+    settings.debounceMs,
+    settings.arxivCategories
   )
 
   let seed = presetQuery ?? ''
@@ -325,6 +380,7 @@ async function openOverlay(presetQuery?: string): Promise<void> {
   }
 
   ui.setSources(settings.sources)
+  ui.setArxivCategories(settings.arxivCategories)
   ui.setBibFiles([], currentBibFile)
   ui.open(seed)
   if (seed) controller.queryNow(seed)
@@ -355,10 +411,7 @@ async function openOverlay(presetQuery?: string): Promise<void> {
   })()
 }
 
-console.log('[EasyCite] content script loaded')
-
 chrome.runtime.onMessage.addListener((msg) => {
-  console.log('[EasyCite] message received:', msg)
   if (msg?.kind === 'open-overlay') {
     openOverlay().catch((err) => console.error('[EasyCite] openOverlay failed:', err))
   }

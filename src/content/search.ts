@@ -9,7 +9,7 @@ export interface SearchUpdate {
   errors: Partial<Record<SourceId, string>>
 }
 
-const SOURCE_ORDER: SourceId[] = ['dblp', 'openreview', 'arxiv']
+const SOURCE_ORDER: SourceId[] = ['dblp', 'openreview', 'arxiv', 'crossref', 'europepmc']
 
 /**
  * Typeahead controller: debounces queries, fans out to all enabled sources in
@@ -29,12 +29,40 @@ export class SearchController {
     private readonly onUpdate: (update: SearchUpdate) => void,
     private sources: SourceId[],
     private preferOfficial: boolean,
-    private readonly debounceMs: number
+    private readonly debounceMs: number,
+    private arxivCategories?: string[]
   ) {}
 
+  /** Sources minus arXiv when its category selection is empty (= disabled). */
+  private effective(sources: SourceId[]): SourceId[] {
+    return sources.filter((s) => !(s === 'arxiv' && this.arxivCategories?.length === 0))
+  }
+
+  private dropSource(source: SourceId): void {
+    this.papersBySource.delete(source)
+    this.pending.delete(source)
+    delete this.errors[source]
+  }
+
+  setArxivCategories(categories: string[]): void {
+    this.arxivCategories = categories
+    if (!this.currentQuery || !this.sources.includes('arxiv')) return
+    // A topic change invalidates current arXiv results; refetch under the new filter.
+    this.dropSource('arxiv')
+    this.fanOut(this.effective(['arxiv']), this.currentQuery, this.seq)
+    this.emit()
+  }
+
+  /** Mid-search toggles apply live: removed sources' results disappear, newly
+   *  enabled ones are queried immediately (response-cached upstream, so cheap). */
   setSources(sources: SourceId[], preferOfficial: boolean): void {
+    const prev = this.sources
     this.sources = sources
     this.preferOfficial = preferOfficial
+    if (!this.currentQuery) return
+    for (const s of prev) if (!sources.includes(s)) this.dropSource(s)
+    this.fanOut(this.effective(sources.filter((s) => !prev.includes(s))), this.currentQuery, this.seq)
+    this.emit()
   }
 
   /** Entries already in the project's .bib — matched locally, pinned above remote results. */
@@ -80,12 +108,17 @@ export class SearchController {
     this.currentQuery = query
     this.papersBySource.clear()
     this.errors = {}
-    this.pending = new Set(this.sources)
+    this.pending.clear()
+    const sources = this.effective(this.sources)
+    this.fanOut(sources, query, seq)
     this.emit()
+  }
 
-    for (const source of this.sources) {
+  private fanOut(sources: SourceId[], query: string, seq: number): void {
+    for (const source of sources) {
+      this.pending.add(source)
       chrome.runtime
-        .sendMessage({ kind: 'search', source, query, seq })
+        .sendMessage({ kind: 'search', source, query, seq, arxivCategories: this.arxivCategories })
         .then((res: SearchResponse) => {
           if (res.seq !== this.seq) return
           this.pending.delete(source)

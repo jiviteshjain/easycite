@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-EasyCite: a personal-use Chrome extension (Manifest V3) that searches CS paper databases (DBLP, OpenReview, arXiv, ACL Anthology) and inserts citations into Overleaf — BibTeX entry into the project's `.bib` file, citation key at the cursor. Built for speed: parallel source queries, incremental result rendering, invisible bib writes over Overleaf's OT websocket.
+EasyCite: a personal-use Chrome extension (Manifest V3) that searches paper databases (DBLP, OpenReview, arXiv, ACL Anthology; optionally Crossref for all fields and Europe PMC for life sciences) and inserts citations into Overleaf — BibTeX entry into the project's `.bib` file, citation key at the cursor. Built for speed: parallel source queries, incremental result rendering, invisible bib writes over Overleaf's OT websocket.
 
 ## Commands
 
@@ -26,9 +26,11 @@ The manifest is generated from `manifest.config.ts` by @crxjs/vite-plugin. Three
 ## Domain rules worth knowing
 
 - **Prefer official versions**: DBLP records with `venue == "CoRR"` (or type "Informal and Other Publications") are arXiv preprints; same paper often has a second, official record. Ranking: ACL Anthology ≥ official venue (DBLP non-CoRR) > OpenReview-accepted > arXiv. OpenReview acceptance: `content.venue.value` not starting with "Submitted to" and `venueid` lacking `Rejected_Submission`/`Withdrawn`/`Submission`.
-- **BibTeX source by provenance**: ACL → `aclanthology.org/<id>.bib`; other venues → `dblp.org/rec/<key>.bib`; OpenReview → `content._bibtex.value`; arXiv-only → `arxiv.org/bibtex/<id>`.
+- **BibTeX source by provenance**: ACL → `aclanthology.org/<id>.bib`; other venues → `dblp.org/rec/<key>.bib`; OpenReview → `content._bibtex.value` (or synthesized from metadata when absent); arXiv-only → `arxiv.org/bibtex/<id>`; Crossref and Europe PMC → `api.crossref.org/works/<doi>/transform/application/x-bibtex` (DOI-less or incomplete transforms fall back to `synthesizeBibtex`). OpenReview records with `OpenReview.net/...` or `dblp.org/...` venueids are catalog mirrors and are skipped.
 - Search is typeahead: debounced, all enabled sources fired in parallel, stale responses discarded by sequence number. Never serialize source requests or add retry/backoff chains — that's the slowness this project exists to avoid.
-- Bib writes are single insert ops (`{p, i}`) at a computed position (alphabetical or append), never whole-document replaces.
+- Bib writes are single insert ops (`{p, i}`) at a computed position (alphabetical or append), never whole-document replaces. Undo sends a matching `{p, d}` delete and verifies by re-reading the doc (`applyOtUpdate` acks on queueing; rejections arrive later via the `otUpdateError` event).
+- **Overleaf socket escaping**: `joinDoc` responses arrive UTF-8-escaped per line (`unescape(encodeURIComponent(...))` in real-time's WebsocketController) while ops are sent/stored raw — always decode joined content (`decodeUtf8Line` in `socket.ts`) or offsets drift after any non-ASCII character and delete ops fail with "Delete component does not match".
+- The DOM tab-switch fallback in `bib-writer.ts` (`writeViaDom`/`removeViaDom`) is slated for removal once the socket path has proven reliable — don't extend it.
 
 ## Testing changes against Overleaf
 

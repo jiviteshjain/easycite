@@ -176,6 +176,15 @@ export function planBibInsertion(bib: string, entryText: string, mode: BibInsert
 }
 
 /**
+ * A fetched entry is usable when it carries the fields a citation needs;
+ * some Crossref DOI transforms (corrections, junk registrations) come back
+ * without title or author and should be replaced by a synthesized entry.
+ */
+export function isCompleteBibtex(entry: string): boolean {
+  return Boolean(extractField(entry, 'title') && extractField(entry, 'author'))
+}
+
+/**
  * Build a BibTeX entry from search-result metadata. Last resort for papers
  * whose source provides no fetchable BibTeX (e.g. OpenReview notes without
  * a _bibtex field).
@@ -190,14 +199,16 @@ export function synthesizeBibtex(p: Paper): string {
   const key = `${surname.toLowerCase() || 'unknown'}${p.year ?? ''}${titleWord}`
   const venue = p.venue.replace(/\b(oral|poster|oralposter|spotlight|notable)\b/gi, '').trim()
   const official = p.official && venue !== ''
+  const type = p.bibType ?? (official ? 'inproceedings' : 'misc')
+  const venueField = type === 'article' ? 'journal' : 'booktitle'
   const fields = [
     `  title = {${p.title}}`,
     p.authors.length > 0 ? `  author = {${p.authors.join(' and ')}}` : undefined,
-    official ? `  booktitle = {${venue}}` : undefined,
+    official ? `  ${venueField} = {${venue}}` : undefined,
     p.year ? `  year = {${p.year}}` : undefined,
     p.url ? `  url = {${p.url}}` : undefined,
   ].filter(Boolean)
-  return `@${official ? 'inproceedings' : 'misc'}{${key},\n${fields.join(',\n')},\n}`
+  return `@${type}{${key},\n${fields.join(',\n')},\n}`
 }
 
 /**

@@ -156,6 +156,13 @@ async function removeViaSocket(projectId: string, bibPath: string, from: number,
     if (pos === -1) throw new Error(CHANGED_ERROR)
     await socket.applyDelete(docId, pos, text, version)
     await socket.leaveDoc(docId)
+    // The ack only means "queued" — rejections come back as otUpdateError.
+    // Re-read the doc and require the text to actually be gone.
+    const after = await socket.joinDoc(docId)
+    await socket.leaveDoc(docId)
+    if (findInsertedText(after.content, pos, text) !== -1) {
+      throw new Error(`delete was not applied${socket.otError ? `: ${socket.otError}` : ''}`)
+    }
   } finally {
     socket.close()
   }

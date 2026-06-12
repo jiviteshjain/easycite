@@ -3,6 +3,7 @@ import {
   extractField,
   findInsertedText,
   generateKey,
+  isCompleteBibtex,
   parseEntries,
   planBibInsertion,
   rewriteKey,
@@ -195,5 +196,32 @@ describe('synthesizeBibtex', () => {
     })
     expect(entry).toMatch(/^@misc\{/)
     expect(entry).not.toContain('booktitle')
+  })
+})
+
+describe('synthesizeBibtex bibType', () => {
+  it('uses @article with journal= for journal papers', () => {
+    const entry = synthesizeBibtex({
+      sourceId: 'europepmc',
+      id: 'MED:1',
+      title: 'Forecasting Electricity Demand',
+      authors: ['Lovelace A'],
+      year: 2022,
+      venue: 'Energy Systems J',
+      official: true,
+      bibType: 'article',
+      bibtexSource: 'crossref',
+      bibtexRef: '10.1000/jrnl.2022.7',
+    })
+    expect(entry).toMatch(/^@article\{/)
+    expect(entry).toContain('journal = {Energy Systems J}')
+    expect(entry).not.toContain('booktitle')
+  })
+})
+
+describe('isCompleteBibtex', () => {
+  it('accepts entries with title and author, rejects field-less transforms', () => {
+    expect(isCompleteBibtex('@article{k, title={T}, author={A B}, year={2020}\n}')).toBe(true)
+    expect(isCompleteBibtex('@article{2026, journal={Some Journal}, year={2026}\n}')).toBe(false)
   })
 })

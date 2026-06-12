@@ -4,7 +4,7 @@ Fast citation insertion for Overleaf on Google Chrome. Press **Ctrl/Cmd+Shift+E*
 
 Searches DBLP, OpenReview, and arXiv in parallel; prefers official published versions (ACL Anthology, NeurIPS/ICML/ICLR via OpenReview/DBLP, CVPR, COLM, TMLR, …) over arXiv preprints, with `⌥⏎` to grab the preprint instead.
 
-Designed for computer science — AI/ML and NLP in particular, which is what the source databases cover best — but extendable: sources are small self-contained modules (`src/core/sources/`, a URL builder plus a response parser each), so other venues and journals can be added by writing one.
+Designed for computer science — AI/ML and NLP in particular, which is what the default sources cover best — but not limited to it: two optional sources extend coverage to other fields (enable them in the settings popup or per project). **Crossref** covers all DOI-registered literature in any field, and **Europe PMC** covers life sciences including bioRxiv/medRxiv preprints. arXiv searches can be limited to your fields' archives (cs, econ, math, physics, q-bio, …) in settings. Sources are small self-contained modules (`src/core/sources/`, a URL builder plus a response parser each), so more can be added by writing one.
 
 _Not intended for discovering literature. Always double-check citations for accuracy, EasyCite may make mistakes._
 
@@ -41,7 +41,7 @@ EasyCite collects no personal information and phones home to nothing — there i
 
 - **`storage`** — saves your settings (citation key format, per-project `.bib` file and source toggles) via `chrome.storage.sync`. That data lives in your browser profile; if you have Chrome sync enabled, Chrome syncs it across your devices like any other extension setting.
 - **`overleaf.com`** — runs the overlay on project pages and talks to Overleaf's own APIs (file list, the editing websocket) with your existing session to write into your project's `.bib` file. It only ever touches the project you have open.
-- **`dblp.org`, `api2.openreview.net`, `arxiv.org` / `export.arxiv.org`, `aclanthology.org`** — your search queries are sent to these public paper databases, and BibTeX entries are fetched from them. The query text (what you type, or the text under your cursor used to seed a search) is the only document content that ever leaves Overleaf, and it goes only to whichever of these sources you have enabled.
+- **`dblp.org`, `api2.openreview.net`, `arxiv.org` / `export.arxiv.org`, `aclanthology.org`, `api.crossref.org`, `www.ebi.ac.uk` (Europe PMC)** — your search queries are sent to these public paper databases, and BibTeX entries are fetched from them. The query text (what you type, or the text under your cursor used to seed a search) is the only document content that ever leaves Overleaf, and it goes only to whichever of these sources you have enabled. Crossref requests include a maintainer contact email (their "polite pool" convention) — no information about you.
 
 ## Develop
 

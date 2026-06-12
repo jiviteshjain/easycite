@@ -105,3 +105,14 @@ it('tiebreaks equal-rank duplicates toward the one with inline bibtex', () => {
   })
   expect(mergeResults([without, withBib], true)[0]!.primary).toBe(withBib)
 })
+
+it('ranks crossref records below specialist sources but above bare arxiv', () => {
+  const fromArxiv = paper({ id: 'a', official: false, bibtexSource: 'arxiv' })
+  const fromCrossref = paper({ id: 'c', official: false, sourceId: 'crossref', bibtexSource: 'crossref' })
+  const fromDblp = paper({ id: 'd', official: false, bibtexSource: 'dblp' })
+  const merged = mergeResults([fromArxiv, fromCrossref, fromDblp], true)
+  expect(merged).toHaveLength(1)
+  expect(merged[0]!.primary).toBe(fromDblp)
+  const onlyTwo = mergeResults([fromArxiv, fromCrossref], true)
+  expect(onlyTwo[0]!.primary).toBe(fromCrossref)
+})

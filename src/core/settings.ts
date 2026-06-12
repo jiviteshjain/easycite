@@ -1,3 +1,4 @@
+import { ARXIV_GROUP_IDS } from './sources/arxiv'
 import type { SourceId } from './types'
 
 export type CiteKeyFormat = 'authorYearWord' | 'AuthorYear' | 'source'
@@ -11,12 +12,15 @@ export interface GlobalSettings {
   debounceMs: number
   defaultSources: SourceId[]
   preferOfficial: boolean
+  /** Top-level arXiv archive groups to search; all groups = no filter. */
+  arxivCategories: string[]
 }
 
 export interface ProjectSettings {
   bibFile?: string
   sources?: SourceId[]
   preferOfficial?: boolean
+  arxivCategories?: string[]
 }
 
 export const DEFAULT_GLOBAL_SETTINGS: GlobalSettings = {
@@ -26,6 +30,7 @@ export const DEFAULT_GLOBAL_SETTINGS: GlobalSettings = {
   debounceMs: 250,
   defaultSources: ['dblp', 'openreview', 'arxiv'],
   preferOfficial: true,
+  arxivCategories: [...ARXIV_GROUP_IDS],
 }
 
 export interface EffectiveSettings extends GlobalSettings {
@@ -43,5 +48,6 @@ export function resolveSettings(
     bibFile: project?.bibFile,
     sources: project?.sources ?? g.defaultSources,
     preferOfficial: project?.preferOfficial ?? g.preferOfficial,
+    arxivCategories: project?.arxivCategories ?? g.arxivCategories,
   }
 }

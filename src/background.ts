@@ -1,6 +1,8 @@
 import * as dblp from './core/sources/dblp'
 import * as arxiv from './core/sources/arxiv'
 import * as openreview from './core/sources/openreview'
+import * as crossref from './core/sources/crossref'
+import * as europepmc from './core/sources/europepmc'
 import type {
   BackgroundRequest,
   BibtexResponse,
@@ -39,16 +41,26 @@ async function fetchText(url: string, timeoutMs = SEARCH_TIMEOUT_MS): Promise<st
   return text
 }
 
-const SOURCES: Record<SourceId, { buildUrl(q: string): string; parse(body: string): Paper[] }> = {
+const SOURCES: Record<
+  SourceId,
+  { buildUrl(q: string, arxivCategories?: string[]): string; parse(body: string): Paper[] }
+> = {
   dblp,
   arxiv,
   openreview,
+  crossref,
+  europepmc,
 }
 
-async function handleSearch(source: SourceId, query: string, seq: number): Promise<SearchResponse> {
+async function handleSearch(
+  source: SourceId,
+  query: string,
+  seq: number,
+  arxivCategories?: string[]
+): Promise<SearchResponse> {
   try {
     const impl = SOURCES[source]
-    const body = await fetchText(impl.buildUrl(query))
+    const body = await fetchText(impl.buildUrl(query, arxivCategories))
     return { source, seq, papers: impl.parse(body) }
   } catch (err) {
     return { source, seq, papers: [], error: err instanceof Error ? err.message : String(err) }
@@ -63,6 +75,8 @@ function bibtexUrl(provenance: Provenance, ref: string): string {
       return dblp.bibtexUrl(ref)
     case 'arxiv':
       return arxiv.bibtexUrl(ref)
+    case 'crossref':
+      return crossref.bibtexUrl(ref)
     case 'openreview':
       throw new Error('OpenReview bibtex is inline; nothing to fetch')
     case 'local':
@@ -82,7 +96,7 @@ async function handleBibtex(provenance: Provenance, ref: string): Promise<Bibtex
 
 chrome.runtime.onMessage.addListener((msg: BackgroundRequest, _sender, sendResponse) => {
   if (msg.kind === 'search') {
-    handleSearch(msg.source, msg.query, msg.seq).then(sendResponse)
+    handleSearch(msg.source, msg.query, msg.seq, msg.arxivCategories).then(sendResponse)
     return true
   }
   if (msg.kind === 'bibtex') {
@@ -99,7 +113,6 @@ chrome.runtime.onMessage.addListener((msg: BackgroundRequest, _sender, sendRespo
 })
 
 chrome.commands.onCommand.addListener(async (command, tab) => {
-  console.log('[EasyCite] command received:', command, 'tab:', tab?.id)
   if (command !== 'open-easycite') return
   let tabId = tab?.id
   // The callback's tab can carry id -1 (TAB_ID_NONE); resolve the active tab instead.

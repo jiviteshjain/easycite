@@ -1,7 +1,8 @@
-export type SourceId = 'dblp' | 'openreview' | 'arxiv'
+export type SourceId = 'dblp' | 'openreview' | 'arxiv' | 'crossref' | 'europepmc'
 
-/** Where the BibTeX comes from; 'local' = already in the project's .bib, nothing to fetch. */
-export type Provenance = 'acl' | 'dblp' | 'openreview' | 'arxiv' | 'local'
+/** Where the BibTeX comes from; 'local' = already in the project's .bib, nothing to fetch.
+ *  'crossref' fetches by DOI — also used by europepmc results (their DOIs are Crossref-registered). */
+export type Provenance = 'acl' | 'dblp' | 'openreview' | 'arxiv' | 'crossref' | 'local'
 
 export interface Paper {
   /** Stable id within its source (dblp key, openreview note id, arxiv id, acl id). */
@@ -20,6 +21,8 @@ export interface Paper {
   bibtexRef: string
   /** BibTeX already in hand (OpenReview ships it in the search response). */
   inlineBibtex?: string
+  /** Entry type hint for synthesized BibTeX (defaults to inproceedings/misc). */
+  bibType?: 'article' | 'inproceedings' | 'misc'
   url?: string
 }
 
@@ -34,6 +37,8 @@ export interface SearchRequest {
   source: SourceId
   query: string
   seq: number
+  /** Top-level arXiv archive groups to search (only used by the arxiv source). */
+  arxivCategories?: string[]
 }
 
 export interface SearchResponse {

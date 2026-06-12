@@ -10,13 +10,15 @@ function surname(author: string | undefined): string {
   return last.toLowerCase().replace(/[^a-z]/g, '')
 }
 
-// 'local' always outranks remote duplicates (max remote rank is 10 + 4):
-// "you already have this" beats any version we could fetch.
+// 'local' always outranks remote duplicates (max remote rank is 10 + 5):
+// "you already have this" beats any version we could fetch. Crossref sits
+// below the specialist sources — it is the broad fallback aggregator.
 const PROVENANCE_RANK: Record<Provenance, number> = {
   local: 20,
-  acl: 4,
-  dblp: 3,
-  openreview: 2,
+  acl: 5,
+  dblp: 4,
+  openreview: 3,
+  crossref: 2,
   arxiv: 1,
 }
 
