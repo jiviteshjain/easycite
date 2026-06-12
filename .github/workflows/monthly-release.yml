@@ -1,0 +1,87 @@
+name: Monthly release
+
+# Cuts a patch release if main moved since the last tag. Runs on the 3rd so
+# Dependabot's monthly bumps (1st) have been auto-merged. The version-bump
+# commit is created via the GraphQL API so GitHub signs it (the branch ruleset
+# requires verified signatures), and the release is built here directly — a
+# tag pushed with GITHUB_TOKEN would not trigger the tag-release workflow.
+
+on:
+  schedule:
+    - cron: '17 9 3 * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Check for commits since the last tag
+        id: changes
+        run: |
+          LAST=$(git describe --tags --abbrev=0)
+          COUNT=$(git rev-list "$LAST"..HEAD --count)
+          echo "Last tag: $LAST, commits since: $COUNT"
+          BASE=${LAST#v}
+          IFS=. read -r MAJOR MINOR PATCH <<< "$BASE"
+          echo "next=$MAJOR.$MINOR.$((PATCH + 1))" >> "$GITHUB_OUTPUT"
+          echo "count=$COUNT" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-node@v6
+        if: steps.changes.outputs.count != '0'
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Bump version and commit via API (signed)
+        if: steps.changes.outputs.count != '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NEXT: ${{ steps.changes.outputs.next }}
+        run: |
+          npm version "$NEXT" --no-git-tag-version
+          sed -i "s/version: '[0-9.]*'/version: '$NEXT'/" manifest.config.ts
+          jq -n \
+            --arg query 'mutation($input: CreateCommitOnBranchInput!) { createCommitOnBranch(input: $input) { commit { oid } } }' \
+            --arg repo "$GITHUB_REPOSITORY" \
+            --arg oid "$(git rev-parse HEAD)" \
+            --arg headline "Release v$NEXT" \
+            --arg pkg "$(base64 -w0 package.json)" \
+            --arg lock "$(base64 -w0 package-lock.json)" \
+            --arg manifest "$(base64 -w0 manifest.config.ts)" \
+            '{query: $query, variables: {input: {
+                branch: {repositoryNameWithOwner: $repo, branchName: "main"},
+                message: {headline: $headline},
+                expectedHeadOid: $oid,
+                fileChanges: {additions: [
+                  {path: "package.json", contents: $pkg},
+                  {path: "package-lock.json", contents: $lock},
+                  {path: "manifest.config.ts", contents: $manifest}
+                ]}}}}' \
+            | gh api graphql --input -
+          git checkout -- .
+          git pull --ff-only origin main
+
+      - name: Tag
+        if: steps.changes.outputs.count != '0'
+        run: git push origin "HEAD:refs/tags/v${{ steps.changes.outputs.next }}"
+
+      - name: Build and release
+        if: steps.changes.outputs.count != '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NEXT: ${{ steps.changes.outputs.next }}
+        run: |
+          npm ci
+          npm test
+          npm run build
+          cp -r dist easycite
+          zip -r "easycite-v$NEXT.zip" easycite
+          gh release create "v$NEXT" "easycite-v$NEXT.zip" \
+            --title "EasyCite v$NEXT" --generate-notes

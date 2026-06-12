@@ -50,10 +50,10 @@ npm test       # vitest unit tests for the core logic
 
 ## Release
 
-Bump `version` in `manifest.config.ts` and `package.json`, then:
+A monthly workflow cuts a patch release automatically when main has new commits since the last tag (Dependabot bumps are tested and auto-merged when they pass, except majors). For a manual minor/major release, bump `version` in `manifest.config.ts` and `package.json`, then:
 
 ```sh
-git tag v0.1.1 && git push --tags
+git tag v0.3.0 && git push --tags
 ```
 
 GitHub Actions builds, tests, zips `dist/`, and publishes the release automatically.
