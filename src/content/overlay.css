@@ -309,6 +309,17 @@ input.query::placeholder {
   color: var(--ec-fg-dim);
 }
 
+/* "Already in your .bib" badge on local rows. */
+.inbib {
+  flex: none;
+  padding: 1px 6px;
+  border-radius: 5px;
+  font-size: 10px;
+  font-weight: 650;
+  color: var(--ec-accent);
+  background: var(--ec-badge-official-bg);
+}
+
 .footer {
   display: flex;
   align-items: center;
@@ -474,6 +485,23 @@ kbd {
 
 .bib-toast-header {
   font-weight: 600;
+}
+
+.undo-hint {
+  margin-left: 10px;
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(238, 240, 248, 0.55);
+  white-space: nowrap;
+}
+
+.undo-hint kbd {
+  font-family: inherit;
+  font-size: 10px;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(238, 240, 248, 0.75);
 }
 
 .toast.bib pre {

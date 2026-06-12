@@ -17,10 +17,11 @@ export interface OverlayCallbacks {
   onPickBibFile(file: string): void
 }
 
-const SOURCE_LABELS: Record<SourceId, string> = {
+const SOURCE_LABELS: Record<SourceId | 'local', string> = {
   dblp: 'DBLP',
   openreview: 'OpenReview',
   arxiv: 'arXiv',
+  local: 'your bibliography',
 }
 
 const ALL_SOURCES: SourceId[] = ['dblp', 'openreview', 'arxiv']
@@ -30,6 +31,7 @@ const PROVENANCE_LABELS: Record<Provenance, string> = {
   dblp: 'DBLP',
   openreview: 'OpenReview',
   arxiv: 'arXiv',
+  local: 'your bibliography',
 }
 
 const ERROR_STATUS_TTL_MS = 4000
@@ -251,6 +253,11 @@ export class Overlay {
         const showYear = p.year && !p.venue.includes(String(p.year))
         vname.textContent = [p.venue, showYear ? p.year : undefined].filter(Boolean).join(' ')
         venueLine.append(vdot, vname)
+        if (p.bibtexSource === 'local') {
+          const badge = el('span', 'inbib')
+          badge.textContent = `✓ in ${this.currentBibFile ?? 'bib'}`
+          venueLine.appendChild(badge)
+        }
         if (result.alternate) {
           const alt = el('span', 'alt-hint')
           alt.textContent = `⌥⏎ ${result.alternate.venue}`
@@ -273,14 +280,17 @@ export class Overlay {
         const authorsLine = el('div', 'details-authors')
         authorsLine.textContent = fullAuthors
         const provenanceLine = el('div', 'details-provenance')
-        provenanceLine.textContent = [
-          [p.venue, p.year].filter(Boolean).join(' '),
-          `found via ${SOURCE_LABELS[p.sourceId]}`,
-          `BibTeX from ${PROVENANCE_LABELS[p.bibtexSource]}`,
-          result.alternate ? `⌥⏎ for ${result.alternate.venue} version` : undefined,
-        ]
-          .filter(Boolean)
-          .join(' · ')
+        provenanceLine.textContent =
+          p.bibtexSource === 'local'
+            ? [[p.venue, p.year].filter(Boolean).join(' '), `@${p.bibtexRef}`].join(' · ')
+            : [
+                [p.venue, p.year].filter(Boolean).join(' '),
+                `found via ${SOURCE_LABELS[p.sourceId]}`,
+                `BibTeX from ${PROVENANCE_LABELS[p.bibtexSource]}`,
+                result.alternate ? `⌥⏎ for ${result.alternate.venue} version` : undefined,
+              ]
+                .filter(Boolean)
+                .join(' · ')
         details.append(authorsLine, provenanceLine)
         detailsWrap.appendChild(details)
 
@@ -411,7 +421,15 @@ export class Overlay {
     this.input.focus()
   }
 
-  showToast(content: { key?: string; file?: string; text?: string }, kind: 'ok' | 'warn' | 'error' = 'ok'): void {
+  getQuery(): string {
+    return this.input.value
+  }
+
+  showToast(
+    content: { key?: string; file?: string; text?: string },
+    kind: 'ok' | 'warn' | 'error' = 'ok',
+    undoHint = false
+  ): number {
     const toast = el('div', `toast${kind !== 'ok' ? ` ${kind}` : ''}`)
     if (content.text) {
       if (content.key) {
@@ -428,20 +446,28 @@ export class Overlay {
       toast.appendChild(code)
       toast.appendChild(document.createTextNode(` → ${content.file}`))
     }
-    this.placeToast(toast, kind === 'ok' ? 2600 : 5000)
+    if (undoHint) toast.appendChild(undoHintEl())
+    const ttl = kind === 'ok' && !undoHint ? 2600 : 5000
+    this.placeToast(toast, ttl)
+    return ttl
   }
 
-  /** Show the BibTeX entry that was just inserted; auto-dismisses. */
-  showBibToast(key: string, file: string, entry: string): void {
+  /** Show the BibTeX entry that was just inserted; auto-dismisses. Returns the TTL. */
+  showBibToast(key: string, file: string, entry: string): number {
     const toast = el('div', 'toast bib')
     const header = el('div', 'bib-toast-header')
     const code = document.createElement('code')
     code.textContent = `@${key}`
-    header.append(code, document.createTextNode(` → ${file}`))
+    header.append(code, document.createTextNode(` → ${file}`), undoHintEl())
     const pre = document.createElement('pre')
     pre.textContent = truncateBibPreview(entry)
     toast.append(header, pre)
     this.placeToast(toast, 7000)
+    return 7000
+  }
+
+  clearToasts(): void {
+    for (const t of this.root.querySelectorAll('.toast')) t.remove()
   }
 
   private placeToast(toast: HTMLDivElement, ttlMs: number): void {
@@ -474,4 +500,10 @@ function el<K extends 'div' | 'span'>(tag: K, className: string): HTMLDivElement
   const node = document.createElement(tag)
   node.className = className
   return node as HTMLDivElement
+}
+
+function undoHintEl(): HTMLSpanElement {
+  const span = el('span', 'undo-hint')
+  span.innerHTML = '<kbd>⌘⇧Z</kbd> undo'
+  return span
 }

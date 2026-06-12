@@ -1,4 +1,4 @@
-import { planBibInsertion, type BibInsertion } from '../core/bibtex'
+import { findInsertedText, planBibInsertion, type BibInsertion } from '../core/bibtex'
 import type { BibInsertMode } from '../core/settings'
 import { OverleafSocket, findDocIdByPath } from './socket'
 import * as bridge from './bridge-client'
@@ -9,6 +9,8 @@ export interface BibWriteResult {
   existed: boolean
   /** Set when the preferred key was taken by a different paper and we renamed. */
   renamedFrom?: string
+  /** What was actually written and where (absent when existed) — kept for undo. */
+  inserted?: { from: number; text: string }
   method: 'socket' | 'dom'
 }
 
@@ -30,7 +32,13 @@ async function writeViaSocket(
     }
     await socket.applyInsert(docId, plan.from, plan.insert, version)
     await socket.leaveDoc(docId)
-    return { key: plan.key, existed: false, renamedFrom: plan.renamedFrom, method: 'socket' }
+    return {
+      key: plan.key,
+      existed: false,
+      renamedFrom: plan.renamedFrom,
+      inserted: { from: plan.from, text: plan.insert },
+      method: 'socket',
+    }
   } finally {
     socket.close()
   }
@@ -102,6 +110,7 @@ async function writeViaDom(
     key: plan.key,
     existed: plan.kind === 'exists',
     renamedFrom: plan.kind === 'insert' ? plan.renamedFrom : undefined,
+    inserted: plan.kind === 'insert' ? { from: plan.from, text: plan.insert } : undefined,
     method: 'dom',
   }
 }
@@ -118,5 +127,75 @@ export async function writeBibEntry(
   } catch (err) {
     console.warn('[EasyCite] socket bib write failed, falling back to DOM:', err)
     return writeViaDom(bibPath, entry, mode, currentFileName)
+  }
+}
+
+/** Read a .bib doc's content without opening it in the editor. */
+export async function readBibContent(projectId: string, bibPath: string): Promise<string> {
+  const { socket, project } = await OverleafSocket.connect(projectId)
+  try {
+    const docId = findDocIdByPath(project, bibPath)
+    if (!docId) throw new Error(`${bibPath} not found in project tree`)
+    const { content } = await socket.joinDoc(docId)
+    await socket.leaveDoc(docId)
+    return content
+  } finally {
+    socket.close()
+  }
+}
+
+const CHANGED_ERROR = 'bibliography changed since insertion'
+
+async function removeViaSocket(projectId: string, bibPath: string, from: number, text: string): Promise<void> {
+  const { socket, project } = await OverleafSocket.connect(projectId)
+  try {
+    const docId = findDocIdByPath(project, bibPath)
+    if (!docId) throw new Error(`${bibPath} not found in project tree`)
+    const { content, version } = await socket.joinDoc(docId)
+    const pos = findInsertedText(content, from, text)
+    if (pos === -1) throw new Error(CHANGED_ERROR)
+    await socket.applyDelete(docId, pos, text, version)
+    await socket.leaveDoc(docId)
+  } finally {
+    socket.close()
+  }
+}
+
+async function removeViaDom(
+  bibPath: string,
+  from: number,
+  text: string,
+  returnToFile: string | undefined
+): Promise<void> {
+  await openFileInEditor(bibPath)
+  const state = await bridge.getEditorState()
+  const pos = findInsertedText(state.doc, from, text)
+  if (pos === -1) throw new Error(CHANGED_ERROR)
+  await bridge.replaceRange({
+    from: pos,
+    to: pos + text.length,
+    insert: '',
+    cursor: pos,
+    expectedDocLength: state.doc.length,
+  })
+  if (returnToFile) {
+    await openFileInEditor(returnToFile).catch(() => {})
+  }
+}
+
+/** Undo a previous writeBibEntry: delete exactly what was inserted, verified first. */
+export async function removeBibEntry(
+  projectId: string,
+  bibPath: string,
+  from: number,
+  text: string,
+  currentFileName: string | undefined
+): Promise<void> {
+  try {
+    await removeViaSocket(projectId, bibPath, from, text)
+  } catch (err) {
+    if (err instanceof Error && err.message === CHANGED_ERROR) throw err
+    console.warn('[EasyCite] socket bib undo failed, falling back to DOM:', err)
+    await removeViaDom(bibPath, from, text, currentFileName)
   }
 }

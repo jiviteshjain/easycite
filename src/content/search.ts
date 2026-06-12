@@ -1,3 +1,4 @@
+import { matchLocalPapers } from '../core/local'
 import { mergeResults } from '../core/merge'
 import type { MergedResult, Paper, SearchResponse, SourceId } from '../core/types'
 
@@ -21,6 +22,8 @@ export class SearchController {
   private papersBySource = new Map<SourceId, Paper[]>()
   private errors: Partial<Record<SourceId, string>> = {}
   private pending = new Set<SourceId>()
+  private localPapers: Paper[] = []
+  private currentQuery = ''
 
   constructor(
     private readonly onUpdate: (update: SearchUpdate) => void,
@@ -34,17 +37,34 @@ export class SearchController {
     this.preferOfficial = preferOfficial
   }
 
+  /** Entries already in the project's .bib — matched locally, pinned above remote results. */
+  setLocalPapers(papers: Paper[]): void {
+    this.localPapers = papers
+    this.emit()
+  }
+
+  /**
+   * Track the query and handle the local-only cases (remote sources need >= 3
+   * chars; local entries filter on any input and all show on none).
+   * Returns true when a remote search should follow.
+   */
+  private setQuery(trimmed: string): boolean {
+    this.currentQuery = trimmed
+    if (trimmed.length >= 3) return true
+    this.seq++
+    this.papersBySource.clear()
+    this.errors = {}
+    this.pending.clear()
+    this.emit()
+    return false
+  }
+
   query(text: string): void {
     if (this.timer !== undefined) clearTimeout(this.timer)
     const trimmed = text.trim()
-    if (trimmed.length < 3) {
-      this.seq++
-      this.papersBySource.clear()
-      this.errors = {}
-      this.pending.clear()
-      this.emit()
-      return
-    }
+    if (!this.setQuery(trimmed)) return
+    // Local entries filter instantly; the remote fan-out waits for the debounce.
+    this.emit()
     this.timer = setTimeout(() => this.run(trimmed), this.debounceMs)
   }
 
@@ -52,11 +72,12 @@ export class SearchController {
   queryNow(text: string): void {
     if (this.timer !== undefined) clearTimeout(this.timer)
     const trimmed = text.trim()
-    if (trimmed.length >= 3) this.run(trimmed)
+    if (this.setQuery(trimmed)) this.run(trimmed)
   }
 
   private run(query: string): void {
     const seq = ++this.seq
+    this.currentQuery = query
     this.papersBySource.clear()
     this.errors = {}
     this.pending = new Set(this.sources)
@@ -82,7 +103,11 @@ export class SearchController {
   }
 
   private emit(): void {
-    const papers = SOURCE_ORDER.flatMap((s) => this.papersBySource.get(s) ?? [])
+    // No query at all -> browse the whole bibliography with the arrow keys.
+    const local = this.currentQuery
+      ? matchLocalPapers(this.localPapers, this.currentQuery)
+      : this.localPapers
+    const papers = [...local, ...SOURCE_ORDER.flatMap((s) => this.papersBySource.get(s) ?? [])]
     this.onUpdate({
       results: mergeResults(papers, this.preferOfficial),
       pendingSources: [...this.pending],

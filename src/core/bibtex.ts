@@ -1,4 +1,5 @@
 import type { CiteKeyFormat, BibInsertMode } from './settings'
+import type { Paper } from './types'
 
 export interface BibEntry {
   type: string
@@ -58,7 +59,7 @@ export function extractField(entryText: string, field: string): string | undefin
   return end === -1 ? undefined : entryText.slice(i, i + end).trim()
 }
 
-function stripTex(s: string): string {
+export function stripTex(s: string): string {
   return s
     .replace(/\\[a-zA-Z]+/g, ' ')
     .replace(/[{}~'"`^]/g, '')
@@ -172,4 +173,41 @@ export function planBibInsertion(bib: string, entryText: string, mode: BibInsert
   const trimmedEnd = bib.replace(/\s+$/, '').length
   const prefix = trimmedEnd === 0 ? '' : '\n\n'
   return { kind: 'insert', key, from: trimmedEnd, insert: `${prefix}${entry}\n`, renamedFrom }
+}
+
+/**
+ * Build a BibTeX entry from search-result metadata. Last resort for papers
+ * whose source provides no fetchable BibTeX (e.g. OpenReview notes without
+ * a _bibtex field).
+ */
+export function synthesizeBibtex(p: Paper): string {
+  const surname = (p.authors[0]?.trim().split(/\s+/).pop() ?? '').replace(/[^a-zA-Z]/g, '')
+  const titleWord =
+    p.title
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .find((w) => w.length > 1 && !STOPWORDS.has(w)) ?? ''
+  const key = `${surname.toLowerCase() || 'unknown'}${p.year ?? ''}${titleWord}`
+  const venue = p.venue.replace(/\b(oral|poster|oralposter|spotlight|notable)\b/gi, '').trim()
+  const official = p.official && venue !== ''
+  const fields = [
+    `  title = {${p.title}}`,
+    p.authors.length > 0 ? `  author = {${p.authors.join(' and ')}}` : undefined,
+    official ? `  booktitle = {${venue}}` : undefined,
+    p.year ? `  year = {${p.year}}` : undefined,
+    p.url ? `  url = {${p.url}}` : undefined,
+  ].filter(Boolean)
+  return `@${official ? 'inproceedings' : 'misc'}{${key},\n${fields.join(',\n')},\n}`
+}
+
+/**
+ * Locate previously inserted text for undo: prefer the recorded position,
+ * fall back to a unique occurrence elsewhere (concurrent edits may have
+ * shifted it). Returns -1 when it's gone or ambiguous.
+ */
+export function findInsertedText(content: string, from: number, text: string): number {
+  if (content.slice(from, from + text.length) === text) return from
+  const first = content.indexOf(text)
+  if (first === -1) return -1
+  return content.indexOf(text, first + 1) === -1 ? first : -1
 }

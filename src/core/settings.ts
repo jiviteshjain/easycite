@@ -21,7 +21,7 @@ export interface ProjectSettings {
 
 export const DEFAULT_GLOBAL_SETTINGS: GlobalSettings = {
   citeKeyFormat: 'authorYearWord',
-  bibInsertMode: 'alphabetical',
+  bibInsertMode: 'append',
   defaultCiteCommand: 'citep',
   debounceMs: 250,
   defaultSources: ['dblp', 'openreview', 'arxiv'],

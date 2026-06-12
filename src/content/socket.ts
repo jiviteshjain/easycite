@@ -154,6 +154,10 @@ export class OverleafSocket {
     await this.emit('applyOtUpdate', [docId, { doc: docId, op: [{ p: position, i: text }], v: version }])
   }
 
+  async applyDelete(docId: string, position: number, text: string, version: number): Promise<void> {
+    await this.emit('applyOtUpdate', [docId, { doc: docId, op: [{ p: position, d: text }], v: version }])
+  }
+
   async leaveDoc(docId: string): Promise<void> {
     await this.emit('leaveDoc', [docId]).catch(() => {})
   }

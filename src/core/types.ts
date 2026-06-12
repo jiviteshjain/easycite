@@ -1,10 +1,11 @@
 export type SourceId = 'dblp' | 'openreview' | 'arxiv'
 
-export type Provenance = 'acl' | 'dblp' | 'openreview' | 'arxiv'
+/** Where the BibTeX comes from; 'local' = already in the project's .bib, nothing to fetch. */
+export type Provenance = 'acl' | 'dblp' | 'openreview' | 'arxiv' | 'local'
 
 export interface Paper {
   /** Stable id within its source (dblp key, openreview note id, arxiv id, acl id). */
-  sourceId: SourceId
+  sourceId: SourceId | 'local'
   id: string
   title: string
   authors: string[]
@@ -15,7 +16,7 @@ export interface Paper {
   official: boolean
   /** Where to fetch the canonical BibTeX from. */
   bibtexSource: Provenance
-  /** Param needed to fetch bibtex: acl id, dblp key, arxiv id — or the inline bibtex for openreview. */
+  /** Param needed to fetch bibtex: acl id, dblp key, arxiv id — or the existing key for 'local'. */
   bibtexRef: string
   /** BibTeX already in hand (OpenReview ships it in the search response). */
   inlineBibtex?: string

@@ -86,7 +86,7 @@
         margin-bottom: 16px;
       }
 
-      .field > label,
+      .field > label:not(.inline),
       .group-label {
         display: block;
         font-size: 10.5px;
@@ -237,23 +237,23 @@
       <h1>EasyCite</h1>
     </header>
     <div class="subtitle">
-      Global defaults — per-project options (bib file, sources) live in the overlay footer.
+      Global defaults. Per-project options (bib file, sources) live in the overlay footer.
     </div>
 
     <div class="field">
       <label for="citeKeyFormat">Citation key format</label>
       <select id="citeKeyFormat">
-        <option value="authorYearWord">vaswani2017attention — author + year + title word</option>
-        <option value="AuthorYear">Vaswani2017 — Author + year</option>
-        <option value="source">Keep the source's key (DBLP / ACL / arXiv)</option>
+        <option value="authorYearWord">Author + year + title word (vaswani2017attention)</option>
+        <option value="AuthorYear">Author + year (Vaswani2017)</option>
+        <option value="source">Source key (as provided by DBLP / ACL / arXiv)</option>
       </select>
     </div>
 
     <div class="field">
       <label for="bibInsertMode">Bibliography file organization</label>
       <select id="bibInsertMode">
-        <option value="alphabetical">Insert alphabetically by key</option>
         <option value="append">Append at the end</option>
+        <option value="alphabetical">Insert alphabetically by key</option>
       </select>
     </div>
 

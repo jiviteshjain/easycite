@@ -10,7 +10,10 @@ function surname(author: string | undefined): string {
   return last.toLowerCase().replace(/[^a-z]/g, '')
 }
 
+// 'local' always outranks remote duplicates (max remote rank is 10 + 4):
+// "you already have this" beats any version we could fetch.
 const PROVENANCE_RANK: Record<Provenance, number> = {
+  local: 20,
   acl: 4,
   dblp: 3,
   openreview: 2,
@@ -46,8 +49,14 @@ export function mergeResults(papers: Paper[], preferOfficial: boolean): MergedRe
   // Group order follows first appearance, preserving source relevance order;
   // ranking only decides which duplicate represents the group.
   return groups.map((group): MergedResult => {
-    const sorted = [...group].sort((a, b) =>
-      preferOfficial ? rank(b) - rank(a) : PROVENANCE_RANK[b.bibtexSource] - PROVENANCE_RANK[a.bibtexSource]
+    // Tiebreak on BibTeX-in-hand: OpenReview sometimes lists the same paper
+    // twice and only one note carries _bibtex.
+    const sorted = [...group].sort(
+      (a, b) =>
+        (preferOfficial
+          ? rank(b) - rank(a)
+          : PROVENANCE_RANK[b.bibtexSource] - PROVENANCE_RANK[a.bibtexSource]) ||
+        Number(Boolean(b.inlineBibtex)) - Number(Boolean(a.inlineBibtex))
     )
     const primary = sorted[0]!
     const alternate = sorted.find((p) => p.official !== primary.official)

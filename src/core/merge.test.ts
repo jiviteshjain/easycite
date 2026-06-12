@@ -75,3 +75,33 @@ describe('mergeResults', () => {
     expect(results[0]!.primary.bibtexSource).toBe('dblp')
   })
 })
+
+describe('local entries in merge', () => {
+  const local = (over: Partial<Paper>): Paper =>
+    paper({ sourceId: 'local', bibtexSource: 'local', bibtexRef: 'vaswani2017attention', ...over })
+
+  it('local always represents its group, even a preprint local vs official remote', () => {
+    const localArxiv = local({ id: 'k', official: false, venue: 'arXiv' })
+    const officialRemote = paper({ id: 'dblp1' })
+    const results = mergeResults([localArxiv, officialRemote], true)
+    expect(results).toHaveLength(1)
+    expect(results[0]!.primary).toBe(localArxiv)
+  })
+
+  it('local wins regardless of preferOfficial', () => {
+    const l = local({ id: 'k' })
+    const remote = paper({ id: 'dblp1' })
+    expect(mergeResults([remote, l], false)[0]!.primary).toBe(l)
+  })
+})
+
+it('tiebreaks equal-rank duplicates toward the one with inline bibtex', () => {
+  const without = paper({ id: 'or1', sourceId: 'openreview', bibtexSource: 'openreview' })
+  const withBib = paper({
+    id: 'or2',
+    sourceId: 'openreview',
+    bibtexSource: 'openreview',
+    inlineBibtex: '@inproceedings{k, title={Attention Is All You Need}}',
+  })
+  expect(mergeResults([without, withBib], true)[0]!.primary).toBe(withBib)
+})

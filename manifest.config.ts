@@ -5,7 +5,7 @@ export default defineManifest({
   name: 'EasyCite',
   description:
     'Fast citation search and insertion for Overleaf: DBLP, OpenReview, ACL Anthology, arXiv.',
-  version: '0.1.0',
+  version: '0.2.0',
   icons: {
     16: 'icons/icon-16.png',
     32: 'icons/icon-32.png',

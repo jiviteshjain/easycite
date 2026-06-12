@@ -65,6 +65,8 @@ function bibtexUrl(provenance: Provenance, ref: string): string {
       return arxiv.bibtexUrl(ref)
     case 'openreview':
       throw new Error('OpenReview bibtex is inline; nothing to fetch')
+    case 'local':
+      throw new Error('Local entries are already in the .bib; nothing to fetch')
   }
 }
 

@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import {
   extractField,
+  findInsertedText,
   generateKey,
   parseEntries,
   planBibInsertion,
   rewriteKey,
+  synthesizeBibtex,
 } from './bibtex'
 
 const VASWANI = `@inproceedings{vaswani2017attention,
@@ -142,5 +144,56 @@ describe('planBibInsertion', () => {
     const plan = planBibInsertion(other, VASWANI, 'append')
     if (plan.kind !== 'insert') throw new Error('expected insert')
     expect(plan.key).toBe('vaswani2017attentionb')
+  })
+})
+
+describe('findInsertedText', () => {
+  it('finds the text at the recorded position', () => {
+    expect(findInsertedText('aaa@x{}bbb', 3, '@x{}')).toBe(3)
+  })
+
+  it('falls back to a unique occurrence when the position shifted', () => {
+    expect(findInsertedText('zzzaaa@x{}bbb', 3, '@x{}')).toBe(6)
+  })
+
+  it('returns -1 when missing or ambiguous', () => {
+    expect(findInsertedText('aaabbb', 0, '@x{}')).toBe(-1)
+    expect(findInsertedText('@x{}__@x{}', 20, '@x{}')).toBe(-1)
+  })
+})
+
+describe('synthesizeBibtex', () => {
+  it('builds an inproceedings entry for official papers, stripping decision suffixes', () => {
+    const entry = synthesizeBibtex({
+      sourceId: 'openreview',
+      id: 'AT8Iw8KOeC',
+      title: 'Pretraining Language Models with Human Preferences',
+      authors: ['Tomasz Korbak', 'Kejian Shi'],
+      year: 2023,
+      venue: 'ICML 2023 OralPoster',
+      official: true,
+      bibtexSource: 'openreview',
+      bibtexRef: 'AT8Iw8KOeC',
+      url: 'https://openreview.net/forum?id=AT8Iw8KOeC',
+    })
+    expect(entry).toContain('@inproceedings{korbak2023pretraining,')
+    expect(entry).toContain('booktitle = {ICML 2023}')
+    expect(entry).toContain('author = {Tomasz Korbak and Kejian Shi}')
+    expect(parseEntries(entry)).toHaveLength(1)
+  })
+
+  it('falls back to @misc without a venue', () => {
+    const entry = synthesizeBibtex({
+      sourceId: 'openreview',
+      id: 'x',
+      title: 'A Paper',
+      authors: [],
+      venue: '',
+      official: false,
+      bibtexSource: 'openreview',
+      bibtexRef: 'x',
+    })
+    expect(entry).toMatch(/^@misc\{/)
+    expect(entry).not.toContain('booktitle')
   })
 })
