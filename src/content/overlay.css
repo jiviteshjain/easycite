@@ -1,0 +1,489 @@
+:host {
+  all: initial;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+/* Transparent click-catcher: closes on outside click without dimming the code. */
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483646;
+  background: transparent;
+}
+
+/* Docked to the right edge so the editor stays visible. */
+.panel {
+  position: fixed;
+  z-index: 2147483647;
+  top: 90px;
+  right: 20px;
+  width: min(440px, calc(100vw - 48px));
+  max-height: calc(100vh - 140px);
+  display: flex;
+  flex-direction: column;
+  border-radius: 16px;
+  overflow: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto, sans-serif;
+  font-size: 14px;
+  color: var(--ec-fg);
+  background: var(--ec-surface);
+  backdrop-filter: blur(24px) saturate(1.5);
+  -webkit-backdrop-filter: blur(24px) saturate(1.5);
+  border: 1px solid var(--ec-border);
+  box-shadow:
+    0 0 0 0.5px rgba(0, 0, 0, 0.15),
+    0 24px 64px rgba(0, 0, 0, 0.35),
+    0 4px 16px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 var(--ec-inner-edge);
+  transform: scale(0.98) translateX(10px);
+  opacity: 0;
+  animation: ec-pop 130ms cubic-bezier(0.2, 0.9, 0.3, 1.2) forwards;
+}
+
+@keyframes ec-pop {
+  to { transform: scale(1) translateX(0); opacity: 1; }
+}
+
+.panel {
+  --ec-fg: rgba(238, 240, 248, 0.95);
+  --ec-fg-mid: rgba(238, 240, 248, 0.78);
+  --ec-fg-dim: rgba(238, 240, 248, 0.55);
+  --ec-fg-faint: rgba(238, 240, 248, 0.35);
+  --ec-surface: rgba(28, 30, 42, 0.72);
+  --ec-border: rgba(255, 255, 255, 0.12);
+  --ec-inner-edge: rgba(255, 255, 255, 0.08);
+  --ec-row-hover: rgba(255, 255, 255, 0.06);
+  --ec-row-selected: rgba(78, 190, 120, 0.14);
+  --ec-accent: #6ecf8b;
+  --ec-accent-strong: #46b56c;
+  --ec-badge-official-bg: rgba(78, 190, 120, 0.2);
+  --ec-badge-official-fg: #9fdcb4;
+  --ec-badge-preprint-fg: rgba(238, 240, 248, 0.5);
+  --ec-kbd-bg: rgba(255, 255, 255, 0.08);
+  --ec-input-bg: rgba(255, 255, 255, 0.05);
+}
+
+@media (prefers-color-scheme: light) {
+  .panel {
+    --ec-fg: rgba(24, 26, 36, 0.94);
+    --ec-fg-mid: rgba(24, 26, 36, 0.75);
+    --ec-fg-dim: rgba(24, 26, 36, 0.55);
+    --ec-fg-faint: rgba(24, 26, 36, 0.35);
+    --ec-surface: rgba(250, 250, 254, 0.78);
+    --ec-border: rgba(0, 0, 0, 0.1);
+    --ec-inner-edge: rgba(255, 255, 255, 0.7);
+    --ec-row-hover: rgba(0, 0, 0, 0.045);
+    --ec-row-selected: rgba(22, 130, 70, 0.1);
+    --ec-accent: #1d8a4a;
+    --ec-accent-strong: #15703b;
+    --ec-badge-official-bg: rgba(22, 130, 70, 0.12);
+    --ec-badge-official-fg: #15703b;
+    --ec-badge-preprint-fg: rgba(24, 26, 36, 0.5);
+    --ec-kbd-bg: rgba(0, 0, 0, 0.06);
+    --ec-input-bg: rgba(0, 0, 0, 0.04);
+  }
+}
+
+.search-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--ec-border);
+}
+
+.search-icon {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  color: var(--ec-fg-dim);
+}
+
+input.query {
+  flex: 1;
+  font: inherit;
+  font-size: 16px;
+  color: var(--ec-fg);
+  background: transparent;
+  border: none;
+  outline: none;
+}
+
+input.query::placeholder {
+  color: var(--ec-fg-faint);
+}
+
+.source-dots {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+}
+
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ec-fg-faint);
+  transition: background 150ms;
+}
+
+.dot.pending {
+  background: var(--ec-accent);
+  animation: ec-pulse 0.9s ease-in-out infinite;
+}
+
+.dot.error {
+  background: #e06c75;
+}
+
+@keyframes ec-pulse {
+  50% { opacity: 0.35; }
+}
+
+.results {
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 6px;
+}
+
+.empty {
+  padding: 28px 16px;
+  text-align: center;
+  color: var(--ec-fg-dim);
+}
+
+.row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 140ms ease, box-shadow 140ms ease, height 180ms ease;
+}
+
+.row:hover {
+  background: var(--ec-row-hover);
+}
+
+.row.selected {
+  background: var(--ec-row-selected);
+  box-shadow: inset 0 0 0 1px var(--ec-accent);
+}
+
+.row-main {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Selected card expands in place: full title, full authors, provenance. */
+.row.expanded .title {
+  white-space: normal;
+  text-overflow: clip;
+}
+
+.row.expanded .meta {
+  display: none;
+}
+
+.details-wrap {
+  display: none;
+}
+
+.row.expanded .details-wrap {
+  display: block;
+  animation: ec-fade 200ms ease;
+}
+
+@keyframes ec-fade {
+  from { opacity: 0; }
+}
+
+.details {
+  margin-top: 3px;
+}
+
+.details-authors {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--ec-fg-mid);
+}
+
+.details-provenance {
+  margin-top: 3px;
+  font-size: 11px;
+  color: var(--ec-fg-faint);
+}
+
+/* Inner content snaps to its final layout; the row's height transition (FLIP
+   in applySelection) provides the motion, clipping via overflow:hidden. */
+.title {
+  font-weight: 550;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.meta {
+  margin-top: 2px;
+  font-size: 12.5px;
+  color: var(--ec-fg-mid);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Venue line above the title: colored venue name, dot encodes official (filled)
+   vs preprint (open). */
+.venue {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 2px;
+  font-size: 10.5px;
+  font-weight: 650;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ec-accent);
+}
+
+.vdot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.vdot.open {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px currentColor;
+}
+
+.vname {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.row.expanded .vname {
+  white-space: normal;
+}
+
+/* Fixed colors for the big venues; everything else keeps the accent blue. */
+/* The accent is Overleaf green, so ICML takes blue to stay distinct. */
+.v-acl { color: #ef6f74; }
+.v-arxiv { color: #d9a05b; }
+.v-neurips { color: #b48cfa; }
+.v-icml { color: #7da2ff; }
+.v-iclr { color: #52c7bc; }
+.v-cv { color: #e88bd0; }
+
+@media (prefers-color-scheme: light) {
+  .v-acl { color: #c2383f; }
+  .v-arxiv { color: #a96a14; }
+  .v-neurips { color: #7a4fd1; }
+  .v-icml { color: #3565d2; }
+  .v-iclr { color: #14897f; }
+  .v-cv { color: #c2509f; }
+}
+
+.alt-hint {
+  flex: none;
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: normal;
+  color: var(--ec-fg-faint);
+}
+
+.row.selected .alt-hint {
+  color: var(--ec-fg-dim);
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  padding: 9px 14px;
+  border-top: 1px solid var(--ec-border);
+  font-size: 12px;
+  color: var(--ec-fg-dim);
+}
+
+.chips {
+  display: flex;
+  gap: 6px;
+}
+
+.chip {
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--ec-border);
+  background: transparent;
+  color: var(--ec-fg-faint);
+  cursor: pointer;
+}
+
+.chip.on {
+  background: var(--ec-badge-official-bg);
+  border-color: transparent;
+  color: var(--ec-badge-official-fg);
+}
+
+.chip:focus-visible,
+.bib-file:focus-visible {
+  outline: 1.5px solid var(--ec-accent);
+  outline-offset: 1px;
+}
+
+.bib-file {
+  font: inherit;
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: 7px;
+  border: none;
+  background: var(--ec-kbd-bg);
+  color: var(--ec-fg-dim);
+  cursor: pointer;
+  max-width: 160px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.spacer {
+  flex: 1;
+}
+
+/* Never shrink or wrap internally — the footer's own wrap moves the whole
+   block to the next line only when it truly doesn't fit. */
+.hints {
+  display: flex;
+  flex: none;
+  gap: 10px;
+  color: var(--ec-fg-faint);
+  white-space: nowrap;
+}
+
+kbd {
+  font-family: inherit;
+  font-size: 10.5px;
+  background: var(--ec-kbd-bg);
+  border-radius: 4px;
+  padding: 1.5px 5px;
+  margin-right: 3px;
+}
+
+/* Floats below the search row so appearing/disappearing never shifts the results. */
+.status {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 10px;
+  right: 10px;
+  z-index: 2;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  color: var(--ec-fg-dim);
+  background: var(--ec-surface);
+  backdrop-filter: blur(16px) saturate(1.4);
+  border: 1px solid var(--ec-border);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+  animation: ec-toast 150ms ease-out;
+}
+
+.status.error {
+  color: #e06c75;
+}
+
+.bib-picker {
+  position: absolute;
+  bottom: 44px;
+  left: 12px;
+  min-width: 220px;
+  border-radius: 10px;
+  background: var(--ec-surface);
+  backdrop-filter: blur(24px) saturate(1.5);
+  border: 1px solid var(--ec-border);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.3);
+  padding: 4px;
+}
+
+.bib-picker .row {
+  padding: 7px 10px;
+}
+
+.toast {
+  position: fixed;
+  z-index: 2147483647;
+  bottom: 28px;
+  right: 20px;
+  padding: 9px 16px;
+  border-radius: 10px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto, sans-serif;
+  font-size: 13px;
+  color: rgba(238, 240, 248, 0.95);
+  background: rgba(28, 30, 42, 0.85);
+  backdrop-filter: blur(16px) saturate(1.4);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  animation: ec-toast 180ms ease-out;
+}
+
+.toast code {
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 12px;
+  color: #9fdcb4;
+}
+
+.toast.error {
+  border-color: rgba(224, 108, 117, 0.55);
+}
+
+.toast.warn {
+  border-color: rgba(229, 192, 123, 0.55);
+}
+
+.toast.warn code {
+  color: #e5c07b;
+}
+
+@keyframes ec-toast {
+  from { opacity: 0; transform: translateY(8px); }
+}
+
+.toast.bib {
+  max-width: min(460px, calc(100vw - 48px));
+}
+
+.bib-toast-header {
+  font-weight: 600;
+}
+
+.toast.bib pre {
+  margin-top: 6px;
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 11px;
+  line-height: 1.45;
+  color: rgba(238, 240, 248, 0.75);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 240px;
+  overflow: hidden;
+}
