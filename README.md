@@ -4,6 +4,8 @@ Fast citation insertion for Overleaf. Press **Ctrl/Cmd+Shift+E**, type a few wor
 
 Searches DBLP, OpenReview, and arXiv in parallel; prefers official published versions (ACL Anthology, NeurIPS/ICML/ICLR via OpenReview/DBLP, CVPR, COLM, TMLR, …) over arXiv preprints, with `⌥⏎` to grab the preprint instead.
 
+Designed for computer science — AI/ML and NLP in particular, which is what the source databases cover best — but extendable: sources are small self-contained modules (`src/core/sources/`, a URL builder plus a response parser each), so other venues and journals can be added by writing one.
+
 <p align="center">
   <img src="docs/easycite-overlay.png" alt="EasyCite search overlay docked on the right of an Overleaf project" width="420">
 </p>
