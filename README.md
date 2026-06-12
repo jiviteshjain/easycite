@@ -1,6 +1,6 @@
 # EasyCite
 
-Fast citation insertion for Overleaf. Press **Ctrl/Cmd+Shift+E**, type a few words of a paper you already know (title, authors, year), hit Enter — the BibTeX entry lands in your `.bib` file (invisibly, no tab switching) and the citation key is inserted at the cursor, merged into an existing `\cite`/`\citep`/`\citet` if you're inside one.
+Fast citation insertion for Overleaf on Google Chrome. Press **Ctrl/Cmd+Shift+E**, type a few words of a paper you already know (title, authors, year), hit Enter — the BibTeX entry lands in your `.bib` file (invisibly, no tab switching) and the citation key is inserted at the cursor, merged into an existing `\cite`/`\citep`/`\citet` if you're inside one.
 
 Searches DBLP, OpenReview, and arXiv in parallel; prefers official published versions (ACL Anthology, NeurIPS/ICML/ICLR via OpenReview/DBLP, CVPR, COLM, TMLR, …) over arXiv preprints, with `⌥⏎` to grab the preprint instead.
 
