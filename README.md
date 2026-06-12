@@ -6,6 +6,8 @@ Searches DBLP, OpenReview, and arXiv in parallel; prefers official published ver
 
 Designed for computer science — AI/ML and NLP in particular, which is what the source databases cover best — but extendable: sources are small self-contained modules (`src/core/sources/`, a URL builder plus a response parser each), so other venues and journals can be added by writing one.
 
+_Not intended for discovering literature. Always double-check citations for accuracy, EasyCite may make mistakes._
+
 <p align="center">
   <img src="docs/easycite-overlay.png" alt="EasyCite search overlay docked on the right of an Overleaf project" width="420">
 </p>
