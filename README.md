@@ -31,6 +31,14 @@ and load `dist/` the same way.
 - Footer: per-project bibliography file picker and source toggles (saved per Overleaf project)
 - Global defaults (citation key format, alphabetical vs append, default cite command) in the popup behind the toolbar icon
 
+## Permissions and privacy
+
+EasyCite collects no personal information and phones home to nothing — there is no analytics, no telemetry, and no server of its own. The permissions it asks for:
+
+- **`storage`** — saves your settings (citation key format, per-project `.bib` file and source toggles) via `chrome.storage.sync`. That data lives in your browser profile; if you have Chrome sync enabled, Chrome syncs it across your devices like any other extension setting.
+- **`overleaf.com`** — runs the overlay on project pages and talks to Overleaf's own APIs (file list, the editing websocket) with your existing session to write into your project's `.bib` file. It only ever touches the project you have open.
+- **`dblp.org`, `api2.openreview.net`, `arxiv.org` / `export.arxiv.org`, `aclanthology.org`** — your search queries are sent to these public paper databases, and BibTeX entries are fetched from them. The query text (what you type, or the text under your cursor used to seed a search) is the only document content that ever leaves Overleaf, and it goes only to whichever of these sources you have enabled.
+
 ## Develop
 
 ```sh
