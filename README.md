@@ -15,7 +15,7 @@ Designed for computer science — AI/ML and NLP in particular, which is what the
 
 ## Install
 
-Download `easycite-vX.Y.Z.zip` from the [latest release](../../releases/latest), unzip it somewhere permanent (Chrome loads the extension from that folder), then load the folder as an unpacked extension at `chrome://extensions` (enable Developer mode → "Load unpacked"). To update, replace the folder contents with a newer release and click the reload arrow on `chrome://extensions`.
+Download `easycite-vX.Y.Z.zip` from the [latest release](../../releases/latest) and unzip it — you get an `easycite/` folder. Move it somewhere permanent (Chrome loads the extension from that folder), then load it as an unpacked extension at `chrome://extensions` (enable Developer mode → "Load unpacked"). To update, unzip the newer release, replace the `easycite/` folder in place, and click the reload arrow on `chrome://extensions` — the path stays the same, so no reinstall.
 
 Or build from source:
 

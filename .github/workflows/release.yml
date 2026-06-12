@@ -30,8 +30,10 @@ jobs:
       - run: npm test
       - run: npm run build
 
+      # Versioned zip name, unversioned folder inside: unzipping always yields
+      # easycite/, so updates replace the folder Chrome already points at.
       - name: Zip extension
-        run: cd dist && zip -r "../easycite-${GITHUB_REF_NAME}.zip" .
+        run: cp -r dist easycite && zip -r "easycite-${GITHUB_REF_NAME}.zip" easycite
 
       - name: Create release
         env:
