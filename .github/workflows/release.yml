@@ -1,0 +1,41 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Check tag matches manifest and package versions
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          PKG=$(node -p "require('./package.json').version")
+          MANIFEST=$(node -p "require('fs').readFileSync('manifest.config.ts','utf8').match(/version:\s*'([^']+)'/)[1]")
+          echo "tag=$TAG package.json=$PKG manifest=$MANIFEST"
+          [ "$TAG" = "$PKG" ] && [ "$TAG" = "$MANIFEST" ] || { echo "Version mismatch"; exit 1; }
+
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+
+      - name: Zip extension
+        run: cd dist && zip -r "../easycite-${GITHUB_REF_NAME}.zip" .
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" "easycite-${GITHUB_REF_NAME}.zip" \
+            --title "EasyCite $GITHUB_REF_NAME" --generate-notes
