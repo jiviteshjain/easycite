@@ -28,6 +28,16 @@ export function parseBibPapers(bib: string): Paper[] {
     const eprintHost =
       extractField(entry.text, 'archiveprefix') ?? extractField(entry.text, 'eprinttype') ?? ''
     if (!venue && ARXIV_RE.test(eprintHost)) venue = 'arXiv'
+    const doi = extractField(entry.text, 'doi')
+    const eprint = extractField(entry.text, 'eprint')
+    // howpublished often wraps a URL: `{\url{https://...}}`, `Online at \url{...}`,
+    // or just the bare URL — pull the first http(s) link.
+    const howpublished = extractField(entry.text, 'howpublished')?.match(/https?:\/\/[^\s}]+/)?.[0]
+    const url =
+      extractField(entry.text, 'url') ??
+      (doi ? `https://doi.org/${doi.replace(/^https?:\/\/(dx\.)?doi\.org\//, '')}` : undefined) ??
+      (eprint && ARXIV_RE.test(eprintHost) ? `https://arxiv.org/abs/${eprint}` : undefined) ??
+      howpublished
     return [
       {
         sourceId: 'local' as const,
@@ -39,6 +49,7 @@ export function parseBibPapers(bib: string): Paper[] {
         official: Boolean(venue) && !ARXIV_RE.test(venue),
         bibtexSource: 'local' as const,
         bibtexRef: entry.key,
+        url,
       },
     ]
   })

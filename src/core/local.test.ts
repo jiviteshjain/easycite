@@ -75,3 +75,61 @@ describe('matchLocalPapers', () => {
     expect(matchLocalPapers(papers, '  ')).toEqual([])
   })
 })
+
+describe('parseBibPapers url extraction', () => {
+  it('uses an explicit url field', () => {
+    const [p] = parseBibPapers(
+      `@article{x, title={T}, author={A}, year={2020}, url={https://example.com/foo}}`
+    )
+    expect(p!.url).toBe('https://example.com/foo')
+  })
+
+  it('falls back to a DOI', () => {
+    const [p] = parseBibPapers(
+      `@article{x, title={T}, author={A}, year={2020}, doi={10.1000/abc}}`
+    )
+    expect(p!.url).toBe('https://doi.org/10.1000/abc')
+  })
+
+  it('strips a doi.org prefix already in the DOI field', () => {
+    const [p] = parseBibPapers(
+      `@article{x, title={T}, author={A}, year={2020}, doi={https://doi.org/10.1000/abc}}`
+    )
+    expect(p!.url).toBe('https://doi.org/10.1000/abc')
+  })
+
+  it('falls back to arxiv eprint when archiveprefix is arXiv', () => {
+    const [p] = parseBibPapers(
+      `@article{x, title={T}, author={A}, archiveprefix={arXiv}, eprint={2401.00001}}`
+    )
+    expect(p!.url).toBe('https://arxiv.org/abs/2401.00001')
+  })
+
+  it('leaves url undefined when no source is present', () => {
+    const [p] = parseBibPapers(`@misc{x, title={T}, author={A}, year={2020}}`)
+    expect(p!.url).toBeUndefined()
+  })
+})
+
+describe('parseBibPapers howpublished', () => {
+  it('extracts a URL wrapped in \\url{}', () => {
+    const [p] = parseBibPapers(
+      `@misc{x, title={T}, author={A}, howpublished={\\url{https://example.com/x}}}`
+    )
+    expect(p!.url).toBe('https://example.com/x')
+  })
+
+  it('extracts a bare URL', () => {
+    const [p] = parseBibPapers(
+      `@misc{x, title={T}, author={A}, howpublished={Online at https://example.com/y}}`
+    )
+    expect(p!.url).toBe('https://example.com/y')
+  })
+
+  it('explicit url field still wins over howpublished', () => {
+    const [p] = parseBibPapers(
+      `@misc{x, title={T}, author={A}, url={https://a/}, howpublished={\\url{https://b/}}}`
+    )
+    expect(p!.url).toBe('https://a/')
+  })
+})

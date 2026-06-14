@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { mergeResults } from './merge'
-import type { Paper } from './types'
+import { mergeResults, rerankByQuery } from './merge'
+import type { MergedResult, Paper } from './types'
 
 const paper = (over: Partial<Paper>): Paper => ({
   sourceId: 'dblp',
@@ -115,4 +115,55 @@ it('ranks crossref records below specialist sources but above bare arxiv', () =>
   expect(merged[0]!.primary).toBe(fromDblp)
   const onlyTwo = mergeResults([fromArxiv, fromCrossref], true)
   expect(onlyTwo[0]!.primary).toBe(fromCrossref)
+})
+
+describe('rerankByQuery', () => {
+  const make = (title: string, authors: string[] = ['A B']) =>
+    ({ primary: paper({ id: title, title, authors }) }) as MergedResult
+
+  it('pulls a title-token match above unrelated higher-ranked papers', () => {
+    const r = rerankByQuery(
+      [
+        make('Incentivizing LLMs to Self-Verify Their Answers'),
+        make('DINO-R1: Incentivizing Reasoning Capability in Vision Foundation Model'),
+        make('DeepSeek-R1: Incentivizing Reasoning Capability in LLMs'),
+        make('When Large Language Models are More Persuasive Than Incentivized Humans'),
+      ],
+      'deepseek ai incentivizing'
+    )
+    expect(r[0]!.primary.title).toBe('DeepSeek-R1: Incentivizing Reasoning Capability in LLMs')
+  })
+
+  it('rewards contiguous title matches', () => {
+    const r = rerankByQuery(
+      [make('Wide and Tall Other Paper'), make('Attention Is All You Need')],
+      'attention is all you need'
+    )
+    expect(r[0]!.primary.title).toBe('Attention Is All You Need')
+  })
+
+  it('rewards author-name matches when title does not overlap', () => {
+    const r = rerankByQuery(
+      [make('Something Else', ['Random Person']), make('Quirky Title', ['Ashish Vaswani', 'Co'])],
+      'vaswani'
+    )
+    expect(r[0]!.primary.authors[0]).toBe('Ashish Vaswani')
+  })
+
+  it('preserves first-appearance order on a tie', () => {
+    const r = rerankByQuery(
+      [make('A Paper About Transformers'), make('Another Paper About Transformers')],
+      'paper transformers'
+    )
+    expect(r.map((x) => x.primary.title)).toEqual([
+      'A Paper About Transformers',
+      'Another Paper About Transformers',
+    ])
+  })
+
+  it('is a no-op for an empty query', () => {
+    const a = make('A')
+    const b = make('B')
+    expect(rerankByQuery([a, b], '   ')).toEqual([a, b])
+  })
 })

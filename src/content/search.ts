@@ -1,5 +1,5 @@
 import { matchLocalPapers } from '../core/local'
-import { mergeResults } from '../core/merge'
+import { mergeResults, rerankByQuery } from '../core/merge'
 import type { MergedResult, Paper, SearchResponse, SourceId } from '../core/types'
 
 export interface SearchUpdate {
@@ -141,8 +141,17 @@ export class SearchController {
       ? matchLocalPapers(this.localPapers, this.currentQuery)
       : this.localPapers
     const papers = [...local, ...SOURCE_ORDER.flatMap((s) => this.papersBySource.get(s) ?? [])]
+    const merged = mergeResults(papers, this.preferOfficial)
     this.onUpdate({
-      results: mergeResults(papers, this.preferOfficial),
+      // Local matches already filter on the query; re-rank only the remote
+      // groups by title/author match, then put local matches back on top.
+      results: [
+        ...merged.filter((r) => r.primary.bibtexSource === 'local'),
+        ...rerankByQuery(
+          merged.filter((r) => r.primary.bibtexSource !== 'local'),
+          this.currentQuery
+        ),
+      ],
       pendingSources: [...this.pending],
       errors: this.errors,
     })

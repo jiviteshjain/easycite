@@ -56,7 +56,7 @@
   --ec-fg-mid: rgba(238, 240, 248, 0.78);
   --ec-fg-dim: rgba(238, 240, 248, 0.55);
   --ec-fg-faint: rgba(238, 240, 248, 0.35);
-  --ec-surface: rgba(28, 30, 42, 0.72);
+  --ec-surface: rgba(28, 30, 42, 0.58);
   --ec-surface-solid: rgb(33, 35, 48);
   --ec-border: rgba(255, 255, 255, 0.12);
   --ec-inner-edge: rgba(255, 255, 255, 0.08);
@@ -77,7 +77,7 @@
     --ec-fg-mid: rgba(24, 26, 36, 0.75);
     --ec-fg-dim: rgba(24, 26, 36, 0.55);
     --ec-fg-faint: rgba(24, 26, 36, 0.35);
-    --ec-surface: rgba(250, 250, 254, 0.78);
+    --ec-surface: rgba(250, 250, 254, 0.62);
     --ec-surface-solid: rgb(250, 250, 254);
     --ec-border: rgba(0, 0, 0, 0.1);
     --ec-inner-edge: rgba(255, 255, 255, 0.7);
@@ -465,6 +465,9 @@ kbd {
   bottom: 44px;
   left: 12px;
   min-width: 220px;
+  /* Stay within the panel; scroll inside if the panel is short. */
+  max-height: calc(100% - 56px);
+  overflow-y: auto;
   border-radius: 10px;
   /* Solid: backdrop-filter is a no-op on descendants of the (already
      backdrop-filtered) panel, so a translucent surface here never blurs. */

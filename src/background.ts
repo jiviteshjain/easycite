@@ -12,7 +12,9 @@ import type {
   SourceId,
 } from './core/types'
 
-const SEARCH_TIMEOUT_MS = 3000
+// Generous: the typeahead supersedes stale queries via seq numbers, so a slow
+// source costs nothing if you've already typed further.
+const SEARCH_TIMEOUT_MS = 6000
 const CACHE_MAX = 200
 
 const cache = new Map<string, string>()

@@ -4,6 +4,42 @@ export function normalizeTitle(title: string): string {
   return title.toLowerCase().replace(/[^a-z0-9]/g, '')
 }
 
+function tokenize(s: string): string[] {
+  return s.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean)
+}
+
+/**
+ * Score a result by how well it matches the query, in title-match order:
+ *  +100 if the title starts with the query (exact prefix typing)
+ *  +50  if the query appears as a contiguous substring of the title
+ *  +10  per query token that appears as a title word (most common signal)
+ *  +5   per query token that appears as an author word (lets author-name
+ *       queries surface papers without title overlap)
+ */
+export function relevanceScore(result: MergedResult, queryTokens: string[]): number {
+  if (queryTokens.length === 0) return 0
+  const p = result.primary
+  const titleTokens = tokenize(p.title)
+  const titleStr = titleTokens.join(' ')
+  const queryStr = queryTokens.join(' ')
+  let score = 0
+  for (const t of queryTokens) if (titleTokens.includes(t)) score += 10
+  if (titleStr.includes(queryStr)) score += titleStr.startsWith(queryStr) ? 100 : 50
+  const authorTokens = tokenize(p.authors.join(' '))
+  for (const t of queryTokens) if (authorTokens.includes(t)) score += 5
+  return score
+}
+
+/** Reorder merged results by query-match score; ties keep first-appearance order. */
+export function rerankByQuery(results: MergedResult[], query: string): MergedResult[] {
+  const tokens = tokenize(query)
+  if (tokens.length === 0) return results
+  return [...results]
+    .map((r, i) => ({ r, i, s: relevanceScore(r, tokens) }))
+    .sort((a, b) => b.s - a.s || a.i - b.i)
+    .map(({ r }) => r)
+}
+
 function surname(author: string | undefined): string {
   if (!author) return ''
   const last = author.trim().split(/\s+/).pop() ?? ''
@@ -48,8 +84,9 @@ export function mergeResults(papers: Paper[], preferOfficial: boolean): MergedRe
     else groups.push([p])
   }
 
-  // Group order follows first appearance, preserving source relevance order;
-  // ranking only decides which duplicate represents the group.
+  // Group order follows first appearance; reorder by query-match score later
+  // via rerankByQuery. Provenance ranking only decides which duplicate
+  // represents the group.
   return groups.map((group): MergedResult => {
     // Tiebreak on BibTeX-in-hand: OpenReview sometimes lists the same paper
     // twice and only one note carries _bibtex.
