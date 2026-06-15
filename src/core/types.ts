@@ -32,13 +32,19 @@ export interface MergedResult {
   alternate?: Paper
 }
 
-export interface SearchRequest {
+/** Per-query knobs the controller passes through to every source's buildUrl. */
+export interface SourceQueryOptions {
+  /** Top-level arXiv archive groups (only the arxiv source uses this). */
+  arxivCategories?: string[]
+  /** Contact for sources that declare POLITE_POOL = true (Crossref's "mailto"). */
+  politeEmail?: string
+}
+
+export interface SearchRequest extends SourceQueryOptions {
   kind: 'search'
   source: SourceId
   query: string
   seq: number
-  /** Top-level arXiv archive groups to search (only used by the arxiv source). */
-  arxivCategories?: string[]
 }
 
 export interface SearchResponse {

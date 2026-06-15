@@ -10,11 +10,12 @@ import type {
   Provenance,
   SearchResponse,
   SourceId,
+  SourceQueryOptions,
 } from './core/types'
 
 // Generous: the typeahead supersedes stale queries via seq numbers, so a slow
 // source costs nothing if you've already typed further.
-const SEARCH_TIMEOUT_MS = 6000
+const SEARCH_TIMEOUT_MS = 10000
 const CACHE_MAX = 200
 
 const cache = new Map<string, string>()
@@ -45,7 +46,7 @@ async function fetchText(url: string, timeoutMs = SEARCH_TIMEOUT_MS): Promise<st
 
 const SOURCES: Record<
   SourceId,
-  { buildUrl(q: string, arxivCategories?: string[]): string; parse(body: string): Paper[] }
+  { buildUrl(q: string, opts?: SourceQueryOptions): string; parse(body: string): Paper[] }
 > = {
   dblp,
   arxiv,
@@ -58,11 +59,11 @@ async function handleSearch(
   source: SourceId,
   query: string,
   seq: number,
-  arxivCategories?: string[]
+  opts: SourceQueryOptions
 ): Promise<SearchResponse> {
   try {
     const impl = SOURCES[source]
-    const body = await fetchText(impl.buildUrl(query, arxivCategories))
+    const body = await fetchText(impl.buildUrl(query, opts))
     return { source, seq, papers: impl.parse(body) }
   } catch (err) {
     return { source, seq, papers: [], error: err instanceof Error ? err.message : String(err) }
@@ -98,7 +99,11 @@ async function handleBibtex(provenance: Provenance, ref: string): Promise<Bibtex
 
 chrome.runtime.onMessage.addListener((msg: BackgroundRequest, _sender, sendResponse) => {
   if (msg.kind === 'search') {
-    handleSearch(msg.source, msg.query, msg.seq, msg.arxivCategories).then(sendResponse)
+    const opts: SourceQueryOptions = {
+      arxivCategories: msg.arxivCategories,
+      politeEmail: msg.politeEmail,
+    }
+    handleSearch(msg.source, msg.query, msg.seq, opts).then(sendResponse)
     return true
   }
   if (msg.kind === 'bibtex') {

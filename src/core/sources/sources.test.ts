@@ -227,20 +227,22 @@ describe('arxiv buildUrl category filtering', () => {
   const decode = (url: string) => decodeURIComponent(url.split('search_query=')[1]!.split('&')[0]!)
 
   it('adds no cat clause when all groups (or none) are selected', () => {
-    expect(decode(arxiv.buildUrl('deep learning', [...arxiv.ARXIV_GROUP_IDS]))).toBe(
+    expect(
+      decode(arxiv.buildUrl('deep learning', { arxivCategories: [...arxiv.ARXIV_GROUP_IDS] }))
+    ).toBe('all:deep AND all:learning')
+    expect(decode(arxiv.buildUrl('deep learning'))).toBe('all:deep AND all:learning')
+    expect(decode(arxiv.buildUrl('deep learning', { arxivCategories: [] }))).toBe(
       'all:deep AND all:learning'
     )
-    expect(decode(arxiv.buildUrl('deep learning'))).toBe('all:deep AND all:learning')
-    expect(decode(arxiv.buildUrl('deep learning', []))).toBe('all:deep AND all:learning')
   })
 
   it('restricts to selected groups with cat: wildcards', () => {
-    const q = decode(arxiv.buildUrl('games', ['econ', 'stat']))
+    const q = decode(arxiv.buildUrl('games', { arxivCategories: ['econ', 'stat'] }))
     expect(q).toBe('(all:games) AND (cat:econ* OR cat:stat*)')
   })
 
   it('expands the physics group into its archive prefixes', () => {
-    const q = decode(arxiv.buildUrl('entanglement', ['physics']))
+    const q = decode(arxiv.buildUrl('entanglement', { arxivCategories: ['physics'] }))
     expect(q).toContain('cat:quant-ph*')
     expect(q).toContain('cat:astro-ph*')
     expect(q).toContain('cat:hep-th*')
@@ -248,7 +250,7 @@ describe('arxiv buildUrl category filtering', () => {
   })
 
   it('ignores unknown group names', () => {
-    expect(decode(arxiv.buildUrl('games', ['nonsense']))).toBe('all:games')
+    expect(decode(arxiv.buildUrl('games', { arxivCategories: ['nonsense'] }))).toBe('all:games')
   })
 })
 
@@ -330,11 +332,20 @@ describe('crossref', () => {
     })
   })
 
-  it('builds a polite-pool search url capped at 5 rows', () => {
+  it('builds a search url capped at 5 rows; omits mailto without an email', () => {
     const url = crossref.buildUrl('solar panels')
     expect(url).toContain('api.crossref.org/works?query.bibliographic=solar%20panels')
     expect(url).toContain('rows=5')
-    expect(url).toContain('mailto=')
+    expect(url).not.toContain('mailto')
+  })
+
+  it('opts into the polite pool when an email is provided', () => {
+    const url = crossref.buildUrl('solar panels', { politeEmail: 'a+b@example.com' })
+    expect(url).toContain('mailto=a%2Bb%40example.com')
+  })
+
+  it('declares POLITE_POOL = true', () => {
+    expect(crossref.POLITE_POOL).toBe(true)
   })
 
   it('builds a DOI transform bibtex url', () => {

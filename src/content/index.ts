@@ -1,7 +1,7 @@
 import { computeInsertion, parseKeyHint, seedTokenAtCursor } from '../core/citation'
 import { generateKey, isCompleteBibtex, rewriteKey, synthesizeBibtex } from '../core/bibtex'
 import { parseBibPapers } from '../core/local'
-import type { EffectiveSettings } from '../core/settings'
+import type { EffectiveSettings, ProjectSettings } from '../core/settings'
 import type { BibtexResponse, MergedResult, Paper, SourceId } from '../core/types'
 import * as bridge from './bridge-client'
 import { readBibContent, removeBibEntry, writeBibEntry, type BibWriteResult } from './bib-writer'
@@ -137,16 +137,30 @@ function closeOverlay(): void {
   bridge.focusEditor().catch(() => {})
 }
 
+/** Storage-first: persist a project-settings patch, return true on success.
+ *  Caller updates in-memory + UI only when this resolves true. */
+async function persistProjectPatch(patch: Partial<ProjectSettings>): Promise<boolean> {
+  try {
+    const project = await loadProjectSettings(projectId)
+    await saveProjectSettings(projectId, { ...project, ...patch })
+    return true
+  } catch (err) {
+    overlay?.setStatus(
+      `Could not save: ${err instanceof Error ? err.message : String(err)}`,
+      true
+    )
+    return false
+  }
+}
+
 async function toggleSource(source: SourceId): Promise<void> {
   if (!settings) return
   const enabled = settings.sources.includes(source)
     ? settings.sources.filter((s) => s !== source)
     : [...settings.sources, source]
   if (enabled.length === 0) return
+  if (!(await persistProjectPatch({ sources: enabled }))) return
   settings.sources = enabled
-  const project = await loadProjectSettings(projectId)
-  await saveProjectSettings(projectId, { ...project, sources: enabled })
-  // Rebuild chips before the controller emits, so in-flight borders survive.
   overlay?.setSources(enabled)
   controller?.setSources(enabled, settings.preferOfficial)
   overlay?.focusInput()
@@ -154,19 +168,18 @@ async function toggleSource(source: SourceId): Promise<void> {
 
 async function setArxivCategories(groups: string[]): Promise<void> {
   if (!settings) return
+  if (!(await persistProjectPatch({ arxivCategories: groups }))) return
   settings.arxivCategories = groups
+  overlay?.setArxivCategories(groups)
   controller?.setArxivCategories(groups)
-  const project = await loadProjectSettings(projectId)
-  await saveProjectSettings(projectId, { ...project, arxivCategories: groups })
 }
 
 async function pickBibFile(file: string): Promise<void> {
+  if (!(await persistProjectPatch({ bibFile: file }))) return
   currentBibFile = file
   overlay?.setBibFiles(bibFiles, file)
   controller?.setLocalPapers([])
   loadLocalPapers(file)
-  const project = await loadProjectSettings(projectId)
-  await saveProjectSettings(projectId, { ...project, bibFile: file })
   overlay?.focusInput()
 }
 
@@ -360,7 +373,8 @@ async function openOverlay(presetQuery?: string): Promise<void> {
     settings.sources,
     settings.preferOfficial,
     settings.debounceMs,
-    settings.arxivCategories
+    settings.arxivCategories,
+    settings.politeEmail
   )
 
   let seed = presetQuery ?? ''

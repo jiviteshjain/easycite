@@ -1,6 +1,10 @@
 import type { SourceId } from '../core/types'
 import type { GlobalSettings } from '../core/settings'
-import { ARXIV_GROUP_IDS } from '../core/sources/arxiv'
+import * as arxiv from '../core/sources/arxiv'
+import * as crossref from '../core/sources/crossref'
+import * as dblp from '../core/sources/dblp'
+import * as europepmc from '../core/sources/europepmc'
+import * as openreview from '../core/sources/openreview'
 import {
   clearAllProjectSettings,
   loadGlobalSettings,
@@ -9,7 +13,24 @@ import {
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T
 
-const SOURCES: SourceId[] = ['dblp', 'openreview', 'arxiv', 'crossref', 'europepmc']
+const ARXIV_GROUP_IDS = arxiv.ARXIV_GROUP_IDS
+
+interface SourceInfo {
+  id: SourceId
+  label: string
+  politePool: boolean
+}
+
+// Each source declares POLITE_POOL itself; this list is the registration site.
+const SOURCE_INFO: SourceInfo[] = [
+  { id: 'dblp', label: 'DBLP', politePool: dblp.POLITE_POOL },
+  { id: 'openreview', label: 'OpenReview', politePool: openreview.POLITE_POOL },
+  { id: 'arxiv', label: 'arXiv', politePool: arxiv.POLITE_POOL },
+  { id: 'crossref', label: 'Crossref', politePool: crossref.POLITE_POOL },
+  { id: 'europepmc', label: 'Europe PMC', politePool: europepmc.POLITE_POOL },
+]
+
+const SOURCES: SourceId[] = SOURCE_INFO.map((s) => s.id)
 
 async function init(): Promise<void> {
   const settings = await loadGlobalSettings()
@@ -25,6 +46,11 @@ async function init(): Promise<void> {
   for (const g of ARXIV_GROUP_IDS) {
     $<HTMLInputElement>(`cat-${g}`).checked = settings.arxivCategories.includes(g)
   }
+  $<HTMLInputElement>('politeEmail').value = settings.politeEmail ?? ''
+  // Source-declarative: settings UI never hard-codes which sources use the email.
+  $('politeSources').textContent = SOURCE_INFO.filter((s) => s.politePool)
+    .map((s) => s.label)
+    .join(', ')
 
   document.body.addEventListener('change', () => void save())
 
@@ -50,11 +76,20 @@ async function save(): Promise<void> {
     debounceMs: Math.max(0, Number($<HTMLInputElement>('debounceMs').value) || 250),
     defaultSources: defaultSources.length > 0 ? defaultSources : ['dblp'],
     arxivCategories,
+    politeEmail: $<HTMLInputElement>('politeEmail').value.trim() || undefined,
   }
-  await saveGlobalSettings(settings)
   const saved = $('saved')
-  saved.classList.add('show')
-  setTimeout(() => saved.classList.remove('show'), 1200)
+  const err = $('saveError')
+  saved.classList.remove('show')
+  err.classList.remove('show')
+  try {
+    await saveGlobalSettings(settings)
+    saved.classList.add('show')
+    setTimeout(() => saved.classList.remove('show'), 1200)
+  } catch (e) {
+    err.textContent = `Save failed: ${e instanceof Error ? e.message : String(e)}`
+    err.classList.add('show')
+  }
 }
 
 void init()

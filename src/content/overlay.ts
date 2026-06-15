@@ -1,5 +1,5 @@
 import css from './overlay.css?inline'
-import { ARXIV_GROUP_IDS } from '../core/sources/arxiv'
+import { ARXIV_GROUP_IDS, ARXIV_GROUP_LABELS } from '../core/sources/arxiv'
 import type { MergedResult, Provenance, SourceId } from '../core/types'
 import type { SearchUpdate } from './search'
 
@@ -39,16 +39,24 @@ const PROVENANCE_LABELS: Record<Provenance, string> = {
   local: 'your bibliography',
 }
 
-const ERROR_STATUS_TTL_MS = 4000
+const ERROR_STATUS_TTL_MS = 6000
 
-/** Fixed colors for big venues (matched against the venue string); others fall back to accent blue. */
+/** Fixed colors for big venues; matches the short name and the canonical long
+ *  form (BibTeX from Crossref/Europe PMC often carries the expanded title). */
 const VENUE_CLASSES: [RegExp, string][] = [
-  [/\bacl\b|emnlp|naacl|eacl|conll|tacl|aacl/i, 'v-acl'],
+  [
+    /\bacl\b|emnlp|naacl|eacl|conll|tacl|aacl|computational linguistics|empirical methods in natural language|computational natural language learning|natural language processing/i,
+    'v-acl',
+  ],
   [/arxiv|\bcorr\b/i, 'v-arxiv'],
-  [/neurips|\bnips\b/i, 'v-neurips'],
-  [/\bicml\b/i, 'v-icml'],
-  [/\biclr\b/i, 'v-iclr'],
-  [/cvpr|iccv|eccv|wacv/i, 'v-cv'],
+  [/neurips|\bnips\b|neural information processing/i, 'v-neurips'],
+  [/\bicml\b|international conference on machine learning/i, 'v-icml'],
+  [/\biclr\b|international conference on learning representations/i, 'v-iclr'],
+  [/\bcolm\b|conference on language modeling|conference on language models/i, 'v-colm'],
+  [
+    /cvpr|iccv|eccv|wacv|computer vision and pattern recognition|international conference on computer vision|european conference on computer vision|applications of computer vision/i,
+    'v-cv',
+  ],
 ]
 
 function venueClass(venue: string): string {
@@ -117,11 +125,6 @@ export class Overlay {
     this.input.placeholder = 'Search title, authors, year…'
     this.input.addEventListener('input', () => this.cb.onQueryChange(this.input.value))
     searchRow.appendChild(this.input)
-    // Anchored under the search row, absolutely positioned so showing it
-    // doesn't shift the result list.
-    this.statusEl = el('div', 'status')
-    this.statusEl.style.display = 'none'
-    searchRow.appendChild(this.statusEl)
 
     this.resultsEl = el('div', 'results')
     // Keep focus in the search input on clicks so arrow keys keep moving the
@@ -144,7 +147,12 @@ export class Overlay {
       <span><kbd>⌘⏎</kbd>multi</span>
       <span><kbd>⇧⏎</kbd>open</span>
       <span><kbd>esc</kbd>close</span>`
-    footer.appendChild(hints)
+    // Hints + status share a fixed slot with overflow:hidden; status slides up
+    // from below to replace the hints, the hints slide back when it clears.
+    const messageSlot = el('div', 'message-slot')
+    this.statusEl = el('div', 'status')
+    messageSlot.append(hints, this.statusEl)
+    footer.appendChild(messageSlot)
 
     this.panel.append(searchRow, this.resultsEl, footer)
     this.root.append(this.backdrop, this.panel)
@@ -182,16 +190,16 @@ export class Overlay {
     this.chipsEl.replaceChildren(
       ...ALL_SOURCES.map((source) => {
         const chip = document.createElement('button')
-        chip.className = `chip${enabled.includes(source) ? ' on' : ''}`
+        chip.className = `chip${this.isEffectivelyOn(source) ? ' on' : ''}`
         chip.textContent = SOURCE_LABELS[source]
         chip.title = `Toggle ${SOURCE_LABELS[source]} for this project`
-        chip.addEventListener('click', () => this.cb.onToggleSource(source))
+        chip.addEventListener('click', () => this.onChipClick(source))
         this.chipEls.set(source, chip)
         if (source !== 'arxiv') return chip
         // arXiv gets a caret opening the per-project topic picker.
         const group = el('span', 'chip-group')
         const caret = document.createElement('button')
-        caret.className = `chip caret${enabled.includes(source) ? ' on' : ''}`
+        caret.className = `chip caret${this.isEffectivelyOn(source) ? ' on' : ''}`
         caret.textContent = '▾'
         caret.title = 'arXiv topics for this project'
         caret.addEventListener('click', () => this.toggleCatPicker())
@@ -202,8 +210,33 @@ export class Overlay {
     this.renderSourceStatus([], {})
   }
 
+  /** UI-only: arXiv looks off when its topic selection is empty (source still
+   *  enabled in storage, but the controller skips it). */
+  private isEffectivelyOn(source: SourceId): boolean {
+    if (!this.enabledSources.includes(source)) return false
+    if (source === 'arxiv' && this.arxivCategories.length === 0) return false
+    return true
+  }
+
+  /** Click on a ghost-disabled arXiv chip opens its topic picker so the user
+   *  can re-enable, instead of producing no visible change. */
+  private onChipClick(source: SourceId): void {
+    if (source === 'arxiv' && this.enabledSources.includes('arxiv') && this.arxivCategories.length === 0) {
+      this.toggleCatPicker()
+      return
+    }
+    this.cb.onToggleSource(source)
+  }
+
   setArxivCategories(groups: string[]): void {
     this.arxivCategories = groups
+    // Refresh chip styling if arXiv toggled across the ghost-disabled threshold.
+    const chip = this.chipEls.get('arxiv')
+    if (chip) {
+      chip.classList.toggle('on', this.isEffectivelyOn('arxiv'))
+      const caret = chip.parentElement?.querySelector('.caret')
+      caret?.classList.toggle('on', this.isEffectivelyOn('arxiv'))
+    }
   }
 
   setBibFiles(files: string[], current: string | undefined): void {
@@ -218,12 +251,15 @@ export class Overlay {
       clearTimeout(this.statusTimer)
       this.statusTimer = undefined
     }
+    // The slide animation is in CSS via the .showing class on the slot;
+    // text content stays present so the slot's height never collapses.
+    const slot = this.statusEl.parentElement!
     if (text === null) {
-      this.statusEl.style.display = 'none'
+      slot.classList.remove('showing', 'error')
     } else {
-      this.statusEl.style.display = ''
       this.statusEl.textContent = text
-      this.statusEl.className = `status${isError ? ' error' : ''}`
+      slot.classList.add('showing')
+      slot.classList.toggle('error', isError)
     }
   }
 
@@ -278,7 +314,7 @@ export class Overlay {
         this.arxivCategories = next
         this.cb.onSetArxivCategories(next)
       })
-      label.append(box, document.createTextNode(group))
+      label.append(box, document.createTextNode(ARXIV_GROUP_LABELS[group] ?? group))
       picker.appendChild(label)
     }
     this.panel.appendChild(picker)

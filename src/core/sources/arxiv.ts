@@ -1,4 +1,6 @@
-import type { Paper } from '../types'
+import type { Paper, SourceQueryOptions } from '../types'
+
+export const POLITE_POOL = false
 
 /** arXiv's top-level archive groups; "physics" spans many archive prefixes. */
 export const ARXIV_GROUPS: Record<string, string[]> = {
@@ -17,10 +19,22 @@ export const ARXIV_GROUPS: Record<string, string[]> = {
 
 export const ARXIV_GROUP_IDS = Object.keys(ARXIV_GROUPS)
 
-export function buildUrl(query: string, categories?: string[]): string {
+/** Display names for the arXiv archive groups, used in settings/overlay UI. */
+export const ARXIV_GROUP_LABELS: Record<string, string> = {
+  cs: 'Computer science',
+  econ: 'Economics',
+  eess: 'Electrical engineering and systems science',
+  math: 'Mathematics',
+  physics: 'Physics',
+  'q-bio': 'Quantitative biology',
+  'q-fin': 'Quantitative finance',
+  stat: 'Statistics',
+}
+
+export function buildUrl(query: string, opts?: SourceQueryOptions): string {
   let q = `all:${query.trim().split(/\s+/).join(' AND all:')}`
   // cat:X* matches both bare archives (quant-ph) and subcategories (cs.CL).
-  const groups = (categories ?? []).filter((g) => g in ARXIV_GROUPS)
+  const groups = (opts?.arxivCategories ?? []).filter((g) => g in ARXIV_GROUPS)
   if (groups.length > 0 && groups.length < ARXIV_GROUP_IDS.length) {
     const cats = groups.flatMap((g) => ARXIV_GROUPS[g]!.map((a) => `cat:${a}*`))
     q = `(${q}) AND (${cats.join(' OR ')})`

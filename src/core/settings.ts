@@ -14,6 +14,8 @@ export interface GlobalSettings {
   preferOfficial: boolean
   /** Top-level arXiv archive groups to search; all groups = no filter. */
   arxivCategories: string[]
+  /** Optional contact for polite-pool requests; never leaves the browser unless set. */
+  politeEmail?: string
 }
 
 export interface ProjectSettings {

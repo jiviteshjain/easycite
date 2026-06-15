@@ -1,6 +1,8 @@
-import type { Paper } from '../types'
+import type { Paper, SourceQueryOptions } from '../types'
 
-export function buildUrl(query: string): string {
+export const POLITE_POOL = false
+
+export function buildUrl(query: string, _opts?: SourceQueryOptions): string {
   return `https://dblp.org/search/publ/api?q=${encodeURIComponent(query)}&format=json&h=15`
 }
 

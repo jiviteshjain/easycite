@@ -30,7 +30,8 @@ export class SearchController {
     private sources: SourceId[],
     private preferOfficial: boolean,
     private readonly debounceMs: number,
-    private arxivCategories?: string[]
+    private arxivCategories?: string[],
+    private politeEmail?: string
   ) {}
 
   /** Sources minus arXiv when its category selection is empty (= disabled). */
@@ -118,7 +119,14 @@ export class SearchController {
     for (const source of sources) {
       this.pending.add(source)
       chrome.runtime
-        .sendMessage({ kind: 'search', source, query, seq, arxivCategories: this.arxivCategories })
+        .sendMessage({
+          kind: 'search',
+          source,
+          query,
+          seq,
+          arxivCategories: this.arxivCategories,
+          politeEmail: this.politeEmail,
+        })
         .then((res: SearchResponse) => {
           if (res.seq !== this.seq) return
           this.pending.delete(source)

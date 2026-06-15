@@ -1,8 +1,7 @@
-import type { Paper } from '../types'
+import type { Paper, SourceQueryOptions } from '../types'
 
-// The mailto puts requests in Crossref's "polite pool" (better rate limits and
-// stability); they ask for a contact, not an account.
-const MAILTO = 'hello@jivitesh.dev'
+/** Declared so consumers (settings UI, controller) can list polite-pool sources. */
+export const POLITE_POOL = true
 
 // Crossref is the broad, all-fields fallback source: keep it to a few rows so
 // same-titled works from other fields don't crowd the specialist sources.
@@ -11,11 +10,14 @@ const ROWS = 5
 /** Record types that are never citable papers. */
 const SKIP_TYPES = new Set(['dataset', 'component', 'peer-review', 'journal-issue', 'grant'])
 
-export function buildUrl(query: string): string {
+export function buildUrl(query: string, opts?: SourceQueryOptions): string {
   const select = 'DOI,title,author,container-title,issued,type,URL'
+  // mailto opts the request into Crossref's "polite pool" (better rate limits
+  // and stability). Without one we hit the shared/throttled pool.
+  const mailto = opts?.politeEmail ? `&mailto=${encodeURIComponent(opts.politeEmail)}` : ''
   return (
     `https://api.crossref.org/works?query.bibliographic=${encodeURIComponent(query)}` +
-    `&rows=${ROWS}&select=${select}&mailto=${MAILTO}`
+    `&rows=${ROWS}&select=${select}${mailto}`
   )
 }
 
