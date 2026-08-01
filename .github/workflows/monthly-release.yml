@@ -33,7 +33,7 @@ jobs:
           echo "next=$MAJOR.$MINOR.$((PATCH + 1))" >> "$GITHUB_OUTPUT"
           echo "count=$COUNT" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         if: steps.changes.outputs.count != '0'
         with:
           node-version: 22
